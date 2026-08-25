@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import path from 'path';
 
-const dataDir = path.join(__dirname, 'data');
+const dataDir = path.join(__dirname, 'public', 'data');
 
 function serveDataMiddleware(req: any, res: any, next: any) {
   // req.url is relative to the mount point '/data'
@@ -28,6 +28,8 @@ function serveDataMiddleware(req: any, res: any, next: any) {
 }
 
 export default defineConfig({
+  base: process.env.BASE_URL || '/Arda/',
+  publicDir: 'public',
   plugins: [
     react(),
     {
@@ -41,3 +43,4 @@ export default defineConfig({
     }
   ],
 });
+

@@ -4,12 +4,15 @@ import { GeojsonCatalogEntry, GeojsonFamily } from '../../core/schema/geojson-ca
  * Registre unifié des fonds GeoJSON historiques, contemporains, administratifs et maritimes.
  * Toutes les entrées sont reliées à des fichiers réels locaux (/data/*.geojson) ou distants (OpenData GitHub).
  */
+const baseUrl = import.meta.env?.BASE_URL || '/';
+const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
 export const GEOJSON_CATALOG_REGISTRY: GeojsonCatalogEntry[] = [
   // ─── 1. FAMILLE HISTORIQUE ───
   {
     id: 'hist-world-3000bc',
     label: 'Monde antique (-3000 av. J.-C.)',
-    url: '/data/6-world_bc3000.geojson',
+    url: `${cleanBase}data/6-world_bc3000.geojson`,
     family: 'historical',
     geographicScope: 'world',
     temporalRange: [-3000, -2000],
@@ -24,7 +27,7 @@ export const GEOJSON_CATALOG_REGISTRY: GeojsonCatalogEntry[] = [
   {
     id: 'hist-rome-117ad',
     label: 'Monde antique & Empire Romain (100 ap. J.-C.)',
-    url: '/data/18-world_100.geojson',
+    url: `${cleanBase}data/18-world_100.geojson`,
     family: 'historical',
     geographicScope: 'continent',
     temporalRange: [1, 300],
@@ -39,7 +42,7 @@ export const GEOJSON_CATALOG_REGISTRY: GeojsonCatalogEntry[] = [
   {
     id: 'hist-world-1800',
     label: 'Monde à l\'Aube du XIXe Siècle (1800)',
-    url: '/data/39-world_1800.geojson',
+    url: `${cleanBase}data/39-world_1800.geojson`,
     family: 'historical',
     geographicScope: 'world',
     temporalRange: [1780, 1814],
@@ -54,7 +57,7 @@ export const GEOJSON_CATALOG_REGISTRY: GeojsonCatalogEntry[] = [
   {
     id: 'hist-europe-1815',
     label: 'Europe du Congrès de Vienne (1815)',
-    url: '/data/40-world_1815.geojson',
+    url: `${cleanBase}data/40-world_1815.geojson`,
     family: 'historical',
     geographicScope: 'continent',
     temporalRange: [1815, 1848],
@@ -71,7 +74,7 @@ export const GEOJSON_CATALOG_REGISTRY: GeojsonCatalogEntry[] = [
   {
     id: 'cont-world-2024',
     label: 'Frontières Internationales Contemporaines (2024)',
-    url: '/data/49-world_2024.geojson',
+    url: `${cleanBase}data/49-world_2024.geojson`,
     family: 'contemporary',
     geographicScope: 'world',
     temporalRange: [2000, 2030],
@@ -118,7 +121,7 @@ export const GEOJSON_CATALOG_REGISTRY: GeojsonCatalogEntry[] = [
   {
     id: 'mar-eez-world',
     label: 'Zones Économiques Exclusives (ZEE)',
-    url: '/data/50-zee.geojson',
+    url: `${cleanBase}data/50-zee.geojson`,
     family: 'maritime',
     geographicScope: 'world',
     referenceYear: 2024,

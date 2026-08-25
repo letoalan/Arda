@@ -54,12 +54,15 @@ const rawFilenames = [
   "49-world_2024.geojson",
 ];
 
+const baseUrl = import.meta.env?.BASE_URL || '/';
+const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
 export const GEOPOLITICA_SOURCES: GeopoliticaSourceFile[] = rawFilenames.map(filename => {
   const match = filename.match(/\d+-world_(bc)?(\d+)\.geojson/);
   if (!match) {
     return {
       id: filename,
-      url: `/data/${filename}`,
+      url: `${cleanBase}data/${filename}`,
       referenceYear: 0,
       label: filename
     };
@@ -72,7 +75,7 @@ export const GEOPOLITICA_SOURCES: GeopoliticaSourceFile[] = rawFilenames.map(fil
 
   return {
     id: filename.replace('.geojson', ''),
-    url: `/data/${filename}`,
+    url: `${cleanBase}data/${filename}`,
     referenceYear,
     label: `Monde en l'an ${labelText}`
   };
