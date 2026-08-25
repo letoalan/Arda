@@ -1,0 +1,72 @@
+graph TD
+    %% NIVEAU 0 : Racine & Architecture
+    README["README.md (Racine)"]
+    ARCH["docs/ARCHITECTURE.md"]
+
+    README --> ARCH
+    README --> SRC_MD["src/src.md"]
+
+    %% NIVEAU 1 : Secteurs Principaux sous src/
+    SRC_MD --> APP_MD["src/app/app.md"]
+    SRC_MD --> SERVICES_MD["src/services/services.md"]
+    SRC_MD --> CORE_MD["src/core/core.md"]
+    SRC_MD --> UTILS_MD["src/utils/utils.md"]
+
+    %% NIVEAU 2 : Sous-secteurs app/
+    APP_MD --> STATE_MD["src/app/state/state.md"]
+    APP_MD --> VIEWS_MD["src/app/views/views.md"]
+    APP_MD --> COMPONENTS_MD["src/app/components/components.md"]
+
+    %% Fiches Fichiers : State (Zustand)
+    STATE_MD --> STORE_MD["src/app/state/store.md"]
+    STATE_MD --> WORLD_SLICE_MD["src/app/state/worldSlice.md"]
+    STATE_MD --> ENTITY_SLICE_MD["src/app/state/entitySlice.md"]
+    STATE_MD --> LAYER_SLICE_MD["src/app/state/layerSlice.md"]
+    STATE_MD --> RELATION_SLICE_MD["src/app/state/relationSlice.md"]
+    STATE_MD --> AI_SLICE_MD["src/app/state/aiSlice.md"]
+
+    %% Fiches Fichiers : Views (Vues React)
+    VIEWS_MD --> MAPVIEW_MD["src/app/views/MapView.md"]
+    VIEWS_MD --> GEOPOLITICA_PANEL_MD["src/app/views/GeopoliticaPanel.md"]
+    VIEWS_MD --> ENTITY_PANEL_MD["src/app/views/EntityPanel.md"]
+    VIEWS_MD --> CONTINENT_BUILDER_MD["src/app/views/ContinentBuilderView.md"]
+    VIEWS_MD --> IA_PANEL_MD["src/app/views/IAPanel.md"]
+    VIEWS_MD --> NETWORK_GRAPH_MD["src/app/views/NetworkGraphView.md"]
+    VIEWS_MD --> NETWORK_PANEL_MD["src/app/views/NetworkPanel.md"]
+    VIEWS_MD --> TIMELINE_VIEW_MD["src/app/views/TimelineView.md"]
+    VIEWS_MD --> WELCOME_SCREEN_MD["src/app/views/WelcomeScreen.md"]
+    VIEWS_MD --> STYLE_PANEL_MD["src/app/views/StylePanel.md"]
+
+    %% Fiches Fichiers : Components (Composants Réutilisables)
+    COMPONENTS_MD --> IMPORT_MODAL_MD["src/app/components/geojson/ImportPreviewModal.md"]
+
+    %% NIVEAU 2 : Sous-secteurs services/
+    SERVICES_MD --> CARTO_MD["src/services/cartography/cartography.md"]
+    SERVICES_MD --> PERSIST_MD["src/services/persistence/persistence.md"]
+    SERVICES_MD --> IMPORT_MD["src/services/import/import.md"]
+    SERVICES_MD --> IA_MD["src/services/ia/ia.md"]
+
+    %% Fiches Fichiers : Services
+    CARTO_MD --> MAP_SERVICE_MD["src/services/cartography/map-service.md"]
+    IMPORT_MD --> GEOPOLITICA_IMP_MD["src/services/import/geopoliticaImporter.md"]
+    IMPORT_MD --> CANDIDATE_IDX_MD["src/services/import/candidateIndexer.md"]
+    IA_MD --> AI_SERVICE_MD["src/services/ia/ai-service.md"]
+
+    %% NIVEAU 2 : Sous-secteurs core/
+    CORE_MD --> SCHEMA_MD["src/core/schema/schema.md"]
+    CORE_MD --> NETWORK_CORE_MD["src/core/network/network.md"]
+    CORE_MD --> STYLES_CONFIG_MD["src/core/styles.config.md"]
+
+    %% NIVEAU 2 : Sous-secteurs utils/
+    UTILS_MD --> SYNTHETIC_DEM_MD["src/utils/generateSyntheticDEM.md"]
+
+    %% LIENS TRANSVERSAUX INTER-MODULES (Dépendances Fonctionnelles)
+    GEOPOLITICA_PANEL_MD -.-> GEOPOLITICA_IMP_MD
+    GEOPOLITICA_PANEL_MD -.-> CANDIDATE_IDX_MD
+    GEOPOLITICA_PANEL_MD -.-> IMPORT_MODAL_MD
+    MAPVIEW_MD -.-> MAP_SERVICE_MD
+    MAPVIEW_MD -.-> STORE_MD
+    IA_PANEL_MD -.-> AI_SERVICE_MD
+    CONTINENT_BUILDER_MD -.-> SYNTHETIC_DEM_MD
+    STORE_MD -.-> PERSIST_MD
+

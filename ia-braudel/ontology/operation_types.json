@@ -1,0 +1,8 @@
+[
+  "addEntity",
+  "addRelation",
+  "addLayer",
+  "updateEntity",
+  "updateRelation",
+  "updateStyle"
+]

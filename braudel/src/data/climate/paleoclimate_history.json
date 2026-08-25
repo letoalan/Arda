@@ -1,0 +1,19 @@
+[
+  { "year": -3000, "deltaTemp": 0.4 },
+  { "year": -2000, "deltaTemp": 0.3 },
+  { "year": -1000, "deltaTemp": 0.1 },
+  { "year": -200, "deltaTemp": 0.5 },
+  { "year": 200, "deltaTemp": 0.4 },
+  { "year": 536, "deltaTemp": -0.8 },
+  { "year": 1000, "deltaTemp": 0.3 },
+  { "year": 1250, "deltaTemp": 0.1 },
+  { "year": 1450, "deltaTemp": -0.4 },
+  { "year": 1650, "deltaTemp": -0.7 },
+  { "year": 1815, "deltaTemp": -0.9 },
+  { "year": 1850, "deltaTemp": 0.0 },
+  { "year": 1900, "deltaTemp": 0.1 },
+  { "year": 1950, "deltaTemp": 0.3 },
+  { "year": 1980, "deltaTemp": 0.5 },
+  { "year": 2000, "deltaTemp": 0.8 },
+  { "year": 2026, "deltaTemp": 1.3 }
+]

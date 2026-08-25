@@ -1,0 +1,13 @@
+- [ ] Implement Temporal Features (TimelineView)
+  - [ ] Add `isPlaying` and `playbackSpeed` to `store.ts`
+  - [ ] Create `TimelineView.tsx` component
+  - [ ] Delete `TimePanel.tsx`
+  - [ ] Update `App.tsx` to use `TimelineView`
+- [ ] Implement Drawing Features (Mapbox Draw)
+  - [ ] Update `map-service.ts` to initialize `mapbox-gl-draw`
+  - [ ] Update `map-service.ts` to handle drawing events (`draw.create`, etc.)
+  - [ ] Update `EntityPanel.tsx` to add drawing controls
+  - [ ] Update `index.css` for mapbox-gl-draw styles
+- [ ] Verification
+  - [ ] Run typescript compiler
+  - [ ] Verify UI rendering
