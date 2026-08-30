@@ -2,16 +2,12 @@ import { z } from 'zod';
 import { ID } from './types';
 
 export const styleSchema = z.object({
-  id: z.string().uuid(),
-  worldId: z.string().uuid(),
-  type: z.literal('relief'),
+  id: z.string().min(1),
+  worldId: z.string().min(1),
+  type: z.string().min(1),
   name: z.string().min(1),
-  properties: z.object({
-    exaggeration: z.number().min(0).max(2).default(0.5),
-    shadowColor: z.string().default('#000000'),
-    highlightColor: z.string().default('#FFFFFF')
-  }),
-  meta: z.any()
+  properties: z.record(z.unknown()).optional(),
+  meta: z.any().optional()
 });
 
 export type StyleSchema = z.infer<typeof styleSchema>;

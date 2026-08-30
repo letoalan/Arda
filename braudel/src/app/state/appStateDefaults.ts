@@ -16,6 +16,7 @@ export const initialAppState = {
   basemapRiversVisible: true,
   geoReferenceLinesVisible: true,
   portulanRhumbVisible: true,
+  graticuleVisible: true,
   mapProjection: 'mercator' as const,
   activeEmpire: 'all' as const,
   currentTime: -3000,

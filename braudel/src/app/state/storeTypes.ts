@@ -19,6 +19,7 @@ export interface AppState {
   basemapRiversVisible: boolean;
   geoReferenceLinesVisible: boolean;
   portulanRhumbVisible: boolean;
+  graticuleVisible: boolean;
   mapProjection: 'mercator' | 'globe';
   activeEmpire: 'all' | 'british' | 'french' | 'portuguese' | 'neutral';
   currentTime: number;
@@ -61,6 +62,7 @@ export interface AppState {
   toggleLayerVisibility: (layerId: string) => void;
   removeLayer: (layerId: string) => void;
   addEntity: (layerId: string, name: string, type?: 'place' | 'event' | 'actor' | 'concept', validFrom?: number, validTo?: number) => string;
+  updateEntity: (entityId: string, updates: Partial<any>) => void;
   updateEntityGeometry: (entityId: string, geometry: any) => void;
   updateEntityTemporalRange: (entityId: string, validFrom?: number, validTo?: number) => void;
   updateEntityProperties: (entityId: string, properties: Record<string, any>) => void;
@@ -76,6 +78,7 @@ export interface AppState {
   setBasemapRiversVisible: (visible: boolean) => void;
   setGeoReferenceLinesVisible: (visible: boolean) => void;
   setPortulanRhumbVisible: (visible: boolean) => void;
+  setGraticuleVisible: (visible: boolean) => void;
   setMapProjection: (projection: 'mercator' | 'globe') => void;
   setActiveEmpire: (empire: 'all' | 'british' | 'french' | 'portuguese' | 'neutral') => void;
   setCurrentTime: (time: number) => void;

@@ -52,12 +52,16 @@ export const TimelineControls: React.FC<TimelineControlsProps> = ({
           borderRadius: '4px',
           padding: '4px 6px',
           fontSize: '0.75rem',
+          cursor: 'pointer',
         }}
       >
         <option value={1}>1 an/s</option>
         <option value={5}>5 ans/s</option>
         <option value={10}>10 ans/s</option>
+        <option value={25}>25 ans/s</option>
         <option value={50}>50 ans/s</option>
+        <option value={100}>100 ans/s</option>
+        <option value={250}>250 ans/s</option>
       </select>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-primary)' }}>

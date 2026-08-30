@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { GeojsonCatalogEntry } from '../../../core/schema/geojson-catalog';
-import { Download, FileCode, HardDrive, ShieldCheck, Calendar } from 'lucide-react';
+import { Download, FileCode, HardDrive, ShieldCheck, Calendar, Play } from 'lucide-react';
 
 interface CatalogEntryCardProps {
   entry: GeojsonCatalogEntry;
   onImport: (entry: GeojsonCatalogEntry, customStartYear?: number, customEndYear?: number) => void;
+  onSetTimelineYear?: (year: number) => void;
   isLoading?: boolean;
 }
 
 export const CatalogEntryCard: React.FC<CatalogEntryCardProps> = ({
   entry,
   onImport,
+  onSetTimelineYear,
   isLoading
 }) => {
   const defaultStart = entry.referenceYear ?? entry.temporalRange?.[0] ?? -3000;
@@ -57,7 +59,7 @@ export const CatalogEntryCard: React.FC<CatalogEntryCardProps> = ({
         )}
       </div>
 
-      {/* Reglage de temporalité lors de l'import */}
+      {/* Réglage de temporalité lors de l'import */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', background: 'var(--bg-tertiary)', padding: '6px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
         <Calendar size={12} color="var(--accent-primary)" />
         <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Temporalité :</span>
@@ -78,14 +80,28 @@ export const CatalogEntryCard: React.FC<CatalogEntryCardProps> = ({
         />
       </div>
 
-      <button
-        onClick={() => onImport(entry, startYear, endYear)}
-        disabled={isLoading}
-        className="btn btn-primary"
-        style={{ marginTop: '4px', fontSize: '0.75rem', padding: '4px 8px', justifyContent: 'center', gap: '4px' }}
-      >
-        <Download size={13} /> {isLoading ? 'Importation...' : `Importer (${startYear} - ${endYear})`}
-      </button>
+      <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+        <button
+          onClick={() => onImport(entry, startYear, endYear)}
+          disabled={isLoading}
+          className="btn btn-primary"
+          style={{ flex: 1, fontSize: '0.75rem', padding: '5px 8px', justifyContent: 'center', gap: '4px' }}
+        >
+          <Download size={13} /> {isLoading ? 'Chargement...' : `Importer`}
+        </button>
+
+        {entry.referenceYear !== undefined && onSetTimelineYear && (
+          <button
+            onClick={() => onSetTimelineYear(entry.referenceYear!)}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.72rem', padding: '5px 8px', gap: '4px' }}
+            title={`Caler la timeline sur l'an ${entry.referenceYear}`}
+          >
+            <Play size={12} /> An {entry.referenceYear}
+          </button>
+        )}
+      </div>
     </div>
   );
 };
+

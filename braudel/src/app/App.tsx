@@ -69,7 +69,7 @@ const WorkspaceContainer: React.FC = () => {
   return (
     <div className={`app-container ${prometheanMode ? 'promethean-mode' : ''}`}>
       {/* Sidebar toggle button (Mobile only) */}
-      <button 
+      <button
         className="sidebar-toggle-btn"
         onClick={() => setSidebarOpen(!sidebarOpen)}
         title="Menu"
@@ -82,9 +82,9 @@ const WorkspaceContainer: React.FC = () => {
       <div className={`sidebar-panel panel ${sidebarOpen ? 'open' : ''}`}>
         <div className="panel-header" style={{ margin: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
-            <button 
-              className="icon-btn" 
-              onClick={() => navigate('/')} 
+            <button
+              className="icon-btn"
+              onClick={() => navigate('/')}
               title="Retour à l'accueil"
               style={{ padding: '4px', flexShrink: 0 }}
             >
@@ -94,7 +94,7 @@ const WorkspaceContainer: React.FC = () => {
               {world.world[0]?.name || 'Projet Arda'}
             </h2>
           </div>
-          <button 
+          <button
             className={`btn ${prometheanMode ? 'btn-primary' : ''}`}
             onClick={togglePrometheanMode}
             title="Mode interactif Promethean (Tactile/Stylet)"
@@ -103,7 +103,7 @@ const WorkspaceContainer: React.FC = () => {
             <Hand size={12} /> Stylet
           </button>
         </div>
-        
+
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <LayerPanel />
           <EntityPanel />
@@ -115,7 +115,7 @@ const WorkspaceContainer: React.FC = () => {
           <IAPanel />
         </div>
       </div>
-      
+
       {/* Main Map View or Network View */}
       <div className="main-view-container">
         <div style={{ flex: 1, position: 'relative', height: '100%' }}>

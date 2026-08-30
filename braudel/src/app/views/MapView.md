@@ -8,4 +8,4 @@
 2. **Effet de Flou & Synthèse Visuelle Progressive** :
    - Lorsque `mapLoading` est actif, un filtre CSS dynamique `blur((1 - progress) * 16px)` applique un flou dégressif jusqu'à révélation nette de la tuile cartographique.
 3. **Synchronisation Climat & Relief** :
-   - Mise à jour en temps réel des calottes glaciaires, submersions marines et ombrages du relief.
+   - Mise à jour en temps réel des calottes glaciaires, submersions marines et ombrages du relief avec typage sécurisé et valeurs de repli pour les propriétés de relief (`exaggeration`, `shadowColor`, `highlightColor`).

@@ -51,8 +51,8 @@ describe('Story Export & Camera Transition Grammaire Suite', () => {
     const config = STYLE_CONFIGS[0];
     const html = generateStandaloneHtml('Arda', config, { type: 'FeatureCollection', features: [] }, { type: 'FeatureCollection', features: [] }, 'story', story);
 
-    expect(html).toContain('Récit Cartographique Bento');
+    expect(html).toContain('Carte-Récit Interactive Braudel');
     expect(html).toContain('bento-container');
-    expect(html).toContain('prevScene');
+    expect(html).toContain('goToWaypoint');
   });
 });

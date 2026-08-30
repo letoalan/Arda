@@ -25,6 +25,7 @@ export const MapView: React.FC = () => {
     basemapRiversVisible,
     geoReferenceLinesVisible,
     portulanRhumbVisible,
+    graticuleVisible,
     mapProjection,
     activeEmpire,
     setMapLoading,
@@ -96,13 +97,14 @@ export const MapView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    mapService.updateEntities(world.entities, world.relations, currentTime, selectedProposal);
-  }, [world.entities, world.relations, currentTime, selectedProposal]);
+    mapService.updateEntities(world.entities, world.relations, currentTime, selectedProposal, world.layers);
+  }, [world.entities, world.relations, world.layers, currentTime, selectedProposal]);
 
   const reliefStyle = world.styles?.find((s) => s.type === 'relief');
-  const exaggeration = reliefStyle?.properties?.exaggeration ?? 0.5;
-  const shadowColor = reliefStyle?.properties?.shadowColor ?? '#000000';
-  const highlightColor = reliefStyle?.properties?.highlightColor ?? '#FFFFFF';
+  const reliefProps = reliefStyle?.properties as { exaggeration?: number; shadowColor?: string; highlightColor?: string } | undefined;
+  const exaggeration = typeof reliefProps?.exaggeration === 'number' ? reliefProps.exaggeration : 0.5;
+  const shadowColor = typeof reliefProps?.shadowColor === 'string' ? reliefProps.shadowColor : '#000000';
+  const highlightColor = typeof reliefProps?.highlightColor === 'string' ? reliefProps.highlightColor : '#FFFFFF';
 
   useEffect(() => {
     mapService.setBasemapStyle(basemapStyle);
@@ -115,7 +117,8 @@ export const MapView: React.FC = () => {
     mapService.setRiversVisible(basemapRiversVisible);
     mapService.setGeoReferenceLinesVisible(geoReferenceLinesVisible);
     mapService.setPortulanRhumbVisible(portulanRhumbVisible);
-  }, [basemapLabelsVisible, basemapBordersVisible, basemapRoadsVisible, basemapRiversVisible, geoReferenceLinesVisible, portulanRhumbVisible]);
+    mapService.setGraticuleVisible(graticuleVisible);
+  }, [basemapLabelsVisible, basemapBordersVisible, basemapRoadsVisible, basemapRiversVisible, geoReferenceLinesVisible, portulanRhumbVisible, graticuleVisible]);
 
   useEffect(() => {
     mapService.setProjection(mapProjection);

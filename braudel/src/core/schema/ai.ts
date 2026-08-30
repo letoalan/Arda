@@ -30,13 +30,13 @@ export const aiValidationResultSchema = z.object({
 });
 
 export const aiSessionSchema = z.object({
-  id: z.string().uuid(),
-  worldId: z.string(),
+  id: z.string().min(1),
+  worldId: z.string().min(1),
   task: aiTaskSchema,
   instruction: z.string(),
   context: z.record(z.unknown()).optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime().optional(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1).optional(),
 });
 
 export const aiSubEntitySchema = z.object({
@@ -49,8 +49,8 @@ export const aiSubEntitySchema = z.object({
 });
 
 export const aiProposalSchema = z.object({
-  id: z.string().uuid(),
-  sessionId: z.string().uuid(),
+  id: z.string().min(1),
+  sessionId: z.string().min(1),
   worldId: z.string(),
   type: aiProposalTypeSchema,
   data: z.record(z.unknown()),
@@ -58,8 +58,6 @@ export const aiProposalSchema = z.object({
   status: aiProposalStatusSchema,
   confidence: z.number().min(0).max(1),
   validation: aiValidationResultSchema.optional(),
-  createdAt: z.string().datetime(),
-  acceptedAt: z.string().datetime().optional(),
   rejectedAt: z.string().datetime().optional(),
 });
 

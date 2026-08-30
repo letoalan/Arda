@@ -1,10 +1,15 @@
 import { z } from 'zod';
 import { ID, EntityType, Entity } from './types';
 
-// Schéma GeoJSON strict pour la géométrie
+// Schéma GeoJSON standard et complet pour la géométrie
 export const geoJsonPointSchema = z.object({
   type: z.literal('Point'),
   coordinates: z.tuple([z.number(), z.number()]) // [longitude, latitude]
+});
+
+export const geoJsonMultiPointSchema = z.object({
+  type: z.literal('MultiPoint'),
+  coordinates: z.array(z.tuple([z.number(), z.number()])),
 });
 
 export const geoJsonLineStringSchema = z.object({
@@ -12,27 +17,43 @@ export const geoJsonLineStringSchema = z.object({
   coordinates: z.array(z.tuple([z.number(), z.number()])),
 });
 
+export const geoJsonMultiLineStringSchema = z.object({
+  type: z.literal('MultiLineString'),
+  coordinates: z.array(z.array(z.tuple([z.number(), z.number()]))),
+});
+
 export const geoJsonPolygonSchema = z.object({
   type: z.literal('Polygon'),
   coordinates: z.array(z.array(z.tuple([z.number(), z.number()]))),
 });
 
+export const geoJsonMultiPolygonSchema = z.object({
+  type: z.literal('MultiPolygon'),
+  coordinates: z.array(z.array(z.array(z.tuple([z.number(), z.number()])))),
+});
+
 export const geometrySchema = z.union([
   geoJsonPointSchema,
+  geoJsonMultiPointSchema,
   geoJsonLineStringSchema,
+  geoJsonMultiLineStringSchema,
   geoJsonPolygonSchema,
+  geoJsonMultiPolygonSchema,
 ]);
 
 export type GeoJsonPoint = z.infer<typeof geoJsonPointSchema>;
+export type GeoJsonMultiPoint = z.infer<typeof geoJsonMultiPointSchema>;
 export type GeoJsonLineString = z.infer<typeof geoJsonLineStringSchema>;
+export type GeoJsonMultiLineString = z.infer<typeof geoJsonMultiLineStringSchema>;
 export type GeoJsonPolygon = z.infer<typeof geoJsonPolygonSchema>;
+export type GeoJsonMultiPolygon = z.infer<typeof geoJsonMultiPolygonSchema>;
 export type GeometryType = z.infer<typeof geometrySchema>;
 
 export const entitySchema = z.object({
-  id: z.string().uuid(),
-  worldId: z.string().uuid(),
-  layerId: z.string().uuid(),
-  type: z.enum(['place', 'event', 'actor', 'concept']),
+  id: z.string().min(1),
+  worldId: z.string().min(1),
+  layerId: z.string().min(1),
+  type: z.enum(['place', 'event', 'actor', 'concept']).optional().default('place'),
   name: z.string().min(1),
   description: z.string().optional(),
   geometry: geometrySchema.optional(),
@@ -43,8 +64,10 @@ export const entitySchema = z.object({
   }).optional().refine(data => !data || data.validFrom <= data.validTo, {
     message: "validFrom must be less than or equal to validTo"
   }),
+  color: z.string().optional(),
   wikiContent: z.string().optional(),
-  meta: z.any()
+  updatedAt: z.string().optional(),
+  meta: z.any().optional()
 });
 
 export type EntitySchema = z.infer<typeof entitySchema>;

@@ -1,0 +1,55 @@
+# Tâches d'implémentation : Résolution et optimisation de l'Export PDF
+
+- [x] 1. Activation de `preserveDrawingBuffer` dans MapLibre ([map-service.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/map-service.ts)) <!-- id: 0 -->
+- [x] 2. Refonte du module d'exportation PDF & multimédia ([export-multimedia.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export-multimedia.ts)) <!-- id: 1 -->
+  - [x] 2.1 Capture asynchrone sécurisée du WebGL Canvas
+  - [x] 2.2 Algorithme de cadrage A4 paysage avec conservation stricte de l'aspect ratio
+  - [x] 2.3 Rendu vectoriel du cartouche, de la rose des vents et de l'échelle graphique
+  - [x] 2.4 Construction de la légende enrichie (entités catégorisées, styles, figurés et relations)
+- [x] 3. Intégration dans le panneau d'export ([DataPanel.tsx](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/DataPanel.tsx)) <!-- id: 2 -->
+- [x] 4. Enrichissement de la suite de tests unitaires ([multimedia-export.test.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/tests/multimedia-export.test.ts)) <!-- id: 3 -->
+- [x] 5. Synchronisation de la documentation technique (Wiki-as-Code) <!-- id: 4 -->
+  - [x] [export-multimedia.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export-multimedia.md)
+  - [x] [export.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export.md)
+  - [x] [map-service.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/map-service.md)
+  - [x] [DataPanel.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/DataPanel.md)
+- [x] 6. Exécution des tests et validation finale <!-- id: 5 -->
+- [x] 7. Résolution de l'absence des calques vectoriels sur l'Atlas PDF (solution2.md) <!-- id: 6 -->
+  - [x] 7.1 Résolution et injection dynamique GeoJSON catalogue à la volée ([export-multimedia.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export-multimedia.ts))
+  - [x] 7.2 Verrouillage GPU et synchronisation WebGL (`waitForMapReady` sur `isSourceLoaded` et `areTilesLoaded`)
+  - [x] 7.3 Support polymorphe universel des plages temporelles `{ validFrom, validTo }` et `[start, end]` ([pdf-timeline-utils.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/pdf-timeline-utils.ts), [mapGeojsonRenderer.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/mapGeojsonRenderer.ts))
+  - [x] 7.4 Photographie exacte au point médian ($T_{\text{snapshot}}$) pour chaque période sélectionnée ($X$ périodes = $X$ pages)
+  - [x] 7.5 Tests unitaires et validation complète (140 tests validés)
+- [x] 8. Résolution de la disparition des tuiles vectorielles de fond & état caméra (solution3-1.md) <!-- id: 7 -->
+  - [x] 8.1 Verrouillage étendu à toutes les sources du style (`waitForAllSourcesReady`)
+  - [x] 8.2 Contrôle de l'état d'immobilité de la caméra (`!isMoving()`, `!isZooming()`, `!isRotating()`)
+  - [x] 8.3 Gestion du pré-chargement et snapshots synchronisés (`ensureEpochEntitiesLoaded`, `captureSnapshotAt`)
+  - [x] 8.4 Tests unitaires de non-régression et timeout caméra (142 tests validés)
+- [x] 9. Résolution du faux positif de synchronisation & unicité de canevas inter-pages (solution4.md) <!-- id: 8 -->
+  - [x] 9.1 Synchronisation événementielle ciblée par `setData` (`updateEntitiesAndWaitForRender` avec écoute de `sourcedata` / `isSourceLoaded`)
+  - [x] 9.2 Séparation de la vérification du fond de carte (`waitForBackgroundTilesReady`) du cycle de vie des entités
+  - [x] 9.3 Tests unitaires de non-régression (ordre `setData` -> `render` -> `capture`, canevas distincts par époque, 144 tests validés)
+- [x] 10. Modularisation du pipeline d'export (< 200 lignes par fichier) & Wiki-as-Code <!-- id: 9 -->
+  - [x] 10.1 Découpage sous `services/export/modules/` (`pdf-types.ts`, `pdf-map-capture.ts`, `pdf-carto-elements.ts`, `pdf-page-renderer.ts`, `pdf-atlas-generator.ts`, `media-export-utils.ts`)
+  - [x] 10.2 Façade modulaire `export-multimedia.ts` (< 50 lignes) avec compatibilité 100%
+  - [x] 10.3 Documentation technique Wiki-as-Code pour chaque module créé et mise à jour des index parent
+- [x] 11. Expansion du mode d'export HTML Carte-Récit interactif (bento.md) <!-- id: 10 -->
+  - [x] 11.1 Modèle de données `ArdaDoc` & conversion universelle ([bento-types.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts))
+  - [x] 11.2 Moteur client de timeline pilotée, waypoints & filtrage temporel ([standalone-timeline-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts))
+  - [x] 11.3 Bascule bidirectionnelle Carte <-> Diapositive d'appui avec retour garanti `same-waypoint` ([standalone-slide-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-logic.ts))
+  - [x] 11.4 Mode Présentation (F5), raccourcis clavier et sauvegarde en place (Ctrl+S)
+  - [x] 11.5 Squelette HTML5 et styles Bento Glassmorphism ([standalone-template.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts), [standaloneStyles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standaloneStyles.ts))
+  - [x] 11.6 Suite de tests unitaires de non-régression (146 tests validés) & Wiki-as-Code synchronisé
+- [x] 12. Affinage Itération 2 de l'Export HTML Carte-Récit (bento2.md) <!-- id: 11 -->
+  - [x] 12.1 Extraction automatique de waypoints depuis les entités temporelles ([bento-types.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts))
+  - [x] 12.2 Conservation stricte et fidèle du style vectoriel actif ([standalone-template.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts))
+  - [x] 12.3 Élimination du clipping des points aux frontières `buffer: 128`, `tolerance: 0.375` ([standalone-map-init.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-map-init.ts))
+  - [x] 12.4 Tiroir de légende latérale dynamique `renderLegendContent` et raccourci `L` ([standalone-timeline-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts), [standalone-slide-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-styles.ts))
+  - [x] 12.5 Tests de non-régression (147 tests validés) & documentation Wiki-as-Code mise à jour
+- [x] 13. Évolutions Bento Slide Editor & Player (bento-editor-player.md) <!-- id: 12 -->
+  - [x] 13.1 Rendu plein écran 16:9 parfait (`aspect-ratio: 16/9`, `object-fit: contain`, `overflow: hidden`, pillarboxing/letterboxing) ([standalone-slide-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-styles.ts))
+  - [x] 13.2 Mode Écran Partagé Carte/Slide (Bouton ⬓ & raccourci `S`, Split vertical 50/50, Minicarte PIP incrustée 160×160px) ([standalone-template.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts), [standalone-slide-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-logic.ts))
+  - [x] 13.3 Responsivité multi-displays & zone de sécurité dynamique anti-collision volet Bento / timeline basse ([standalone-bento-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-bento-styles.ts), [standalone-slide-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-styles.ts))
+  - [x] 13.4 Enrichissements PowerPoint (formes flèches/étoiles/bannières, guides d'alignement magnétiques visuels)
+  - [x] 13.5 Tests unitaires de non-régression et mise à jour de la documentation technique (Wiki-as-Code)
+

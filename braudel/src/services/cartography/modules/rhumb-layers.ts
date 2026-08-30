@@ -9,8 +9,16 @@ import {
   RhumbNetworkConfig
 } from '../../../core/cartography/rhumb_network';
 
-export function initRhumbNetworkLayer(map: Map | null, config?: Partial<RhumbNetworkConfig>) {
+export function initRhumbNetworkLayer(map: Map | null, initialVisibility: boolean = true, config?: Partial<RhumbNetworkConfig>) {
   if (!map) return;
+  if (!map.isStyleLoaded()) {
+    map.once('style.load', () => initRhumbNetworkLayer(map, initialVisibility, config));
+    return;
+  }
+  if (map.getSource('rhumb-network-lines')) {
+    toggleRhumbLines(map, initialVisibility);
+    return;
+  }
 
   const preset = config?.stylePreset || 'renaissance';
   const palette = {
@@ -23,6 +31,8 @@ export function initRhumbNetworkLayer(map: Map | null, config?: Partial<RhumbNet
     stylePreset: preset,
     customPalette: palette
   });
+
+  const visibility = initialVisibility ? 'visible' : 'none';
 
   // 1. Sources GeoJSON statiques pour les arêtes et centres de Delaunay
   if (!map.getSource('rhumb-network-lines')) {
@@ -50,30 +60,23 @@ export function initRhumbNetworkLayer(map: Map | null, config?: Partial<RhumbNet
       type: 'line',
       source: 'rhumb-network-lines',
       layout: {
-        visibility: 'visible',
+        visibility,
         'line-cap': 'round',
         'line-join': 'round',
       },
-      // Filtre LOD : arêtes majeures dès zoom 1, secondaires à zoom ≥ 3
-      filter: ['<=', ['get', 'min_zoom'], ['zoom']],
       paint: {
         // Dégradé ou couleur du nœud source avec dégressivité selon le tier
-        'line-color': ['get', 'source_color'],
+        'line-color': ['coalesce', ['get', 'source_color'], '#b45309'],
         'line-width': [
           'match', ['get', 'edge_tier'],
-          'major', 1.2,
-          0.7
+          'major', 1.5,
+          0.9
         ],
         'line-opacity': [
           'match', ['get', 'edge_tier'],
-          'major', 0.55,
-          0.35
-        ],
-        'line-dasharray': [
-          'match', ['get', 'edge_tier'],
-          'major', ['literal', [1, 0]],
-          ['literal', [3, 2]]
-        ] as any
+          'major', 0.8,
+          0.55
+        ]
       }
     });
   }
@@ -85,21 +88,19 @@ export function initRhumbNetworkLayer(map: Map | null, config?: Partial<RhumbNet
       type: 'circle',
       source: 'rhumb-network-nodes',
       layout: {
-        visibility: 'visible'
+        visibility
       },
-      // Filtre LOD : nœuds majeurs dès zoom 1, sous-nœuds régionaux à zoom ≥ 3
-      filter: ['<=', ['get', 'min_zoom'], ['zoom']],
       paint: {
         'circle-radius': [
           'case',
-          ['get', 'hasRose'], 6,
-          3.5
+          ['get', 'hasRose'], 7,
+          4
         ],
         // Couleur unique par nœud — identité visuelle immédiate
-        'circle-color': ['get', 'center_color'],
-        'circle-stroke-width': 1.5,
-        'circle-stroke-color': palette.roseBorder,
-        'circle-opacity': 0.9
+        'circle-color': ['coalesce', ['get', 'center_color'], '#b45309'],
+        'circle-stroke-width': 2,
+        'circle-stroke-color': palette.roseBorder || '#f59e0b',
+        'circle-opacity': 0.95
       }
     });
   }
@@ -120,6 +121,14 @@ export function updateRhumbPalette(map: Map | null, preset: RhumbStylePreset) {
 
 export function toggleRhumbLines(map: Map | null, visible: boolean) {
   if (!map) return;
+  if (!map.isStyleLoaded()) {
+    map.once('style.load', () => toggleRhumbLines(map, visible));
+    return;
+  }
+  if (!map.getSource('rhumb-network-lines')) {
+    initRhumbNetworkLayer(map, visible);
+    return;
+  }
   const visibility = visible ? 'visible' : 'none';
   ['rhumb-lines', 'rhumb-centers'].forEach((layerId) => {
     if (map.getLayer(layerId)) {

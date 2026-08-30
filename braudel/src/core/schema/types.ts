@@ -47,9 +47,19 @@ export interface GeoJsonPoint {
   coordinates: [number, number]; // [longitude, latitude]
 }
 
+export interface GeoJsonMultiPoint {
+  type: 'MultiPoint';
+  coordinates: Array<[number, number]>;
+}
+
 export interface GeoJsonLineString {
   type: 'LineString';
   coordinates: Array<[number, number]>;
+}
+
+export interface GeoJsonMultiLineString {
+  type: 'MultiLineString';
+  coordinates: Array<Array<[number, number]>>;
 }
 
 export interface GeoJsonPolygon {
@@ -57,7 +67,18 @@ export interface GeoJsonPolygon {
   coordinates: Array<Array<[number, number]>>;
 }
 
-export type GeometryType = GeoJsonPoint | GeoJsonLineString | GeoJsonPolygon;
+export interface GeoJsonMultiPolygon {
+  type: 'MultiPolygon';
+  coordinates: Array<Array<Array<[number, number]>>>;
+}
+
+export type GeometryType = 
+  | GeoJsonPoint 
+  | GeoJsonMultiPoint 
+  | GeoJsonLineString 
+  | GeoJsonMultiLineString 
+  | GeoJsonPolygon 
+  | GeoJsonMultiPolygon;
 
 export interface Entity {
   id: ID;
@@ -69,7 +90,9 @@ export interface Entity {
   geometry?: GeometryType;
   properties?: Record<string, unknown>; // We will use properties.relationId for linked relation
   temporalRange?: { validFrom: number; validTo: number };
+  color?: string;
   wikiContent?: string;
+  updatedAt?: string;
   meta?: Meta;
 }
 

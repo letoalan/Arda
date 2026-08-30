@@ -84,6 +84,28 @@ export const useStore = create<AppState>((set, get) => ({
     set(res);
     return res.selectedEntityId!;
   },
+  updateEntity: (entityId, updates) => {
+    set((state) => {
+      const updatedEntities = state.world.entities.map((e) => {
+        if (e.id === entityId) {
+          const updated = {
+            ...e,
+            ...updates,
+            properties: {
+              ...e.properties,
+              ...(updates.properties || {}),
+              ...(updates.color ? { color: updates.color } : {}),
+            },
+            updatedAt: new Date().toISOString(),
+          };
+          db.put('entities', updated);
+          return updated;
+        }
+        return e;
+      });
+      return { world: { ...state.world, entities: updatedEntities } };
+    });
+  },
   updateEntityGeometry: (entityId, geometry) => set(handleUpdateEntityGeometry(get(), entityId, geometry)),
   updateEntityTemporalRange: (entityId, validFrom, validTo) => set(handleUpdateEntityTemporalRange(get(), entityId, validFrom, validTo)),
   updateEntityWikiContent: (entityId, wikiContent) => set(handleUpdateEntityWikiContent(get(), entityId, wikiContent)),

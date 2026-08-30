@@ -25,7 +25,7 @@ export interface StyleRhumbConfig {
 }
 
 export type BasemapStyleId =
-  | 'antiquity' | 'medieval' | 'renaissance' | 'modern' | 'colonial' | 'al_idrisi'
+  | 'antiquity' | 'medieval' | 'renaissance' | 'modern' | 'colonial' | 'al_idrisi' | 'jules_verne' | 'twentieth_century_physical'
   | 'journalism_60s_70s' | 'military_staff_ww1_ww2' | 'military_tactical_wargames' | 'journalism_electro_80s' | 'cnn_broadcast_90s_00s'
   | 'futuristic' | 'contemporary_current' | 'contemporary_satellite' | 'nasa_night_lights'
   | 'contemporary_national_geographic' | 'contemporary_positron_lite'
@@ -84,7 +84,12 @@ export interface StyleConfig {
     borderColor?: string;
     hillshadeShadow?: string;
     hillshadeHighlight?: string;
+    hillshadeAccent?: string;
+    hillshadeExaggeration?: number;
   };
+  demEnabled?: boolean;
+  demExaggeration?: number;
+  demUrl?: string;
   fontFamily: string;
   decorativeBorder?: 'crane' | 'baroque' | 'rinceaux' | 'circuit' | null;
   labelLanguage?: 'la' | 'ar' | 'fr' | 'en';

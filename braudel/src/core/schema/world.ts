@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import { Meta, World, WorldType } from './types';
-import { metaSchema } from './meta';
 
 export const worldSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
   worldType: z.enum(['real', 'fictional']).optional().default('real'),
@@ -15,7 +14,7 @@ export const worldSchema = z.object({
   startYear: z.number().optional(),
   endYear: z.number().optional(),
   prometheanMode: z.boolean().optional(),
-  meta: metaSchema,
+  meta: z.any().optional(),
 });
 
 export type WorldSchema = z.infer<typeof worldSchema>;

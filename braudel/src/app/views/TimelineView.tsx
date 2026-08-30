@@ -32,21 +32,35 @@ export const TimelineView: React.FC = () => {
   const tracksContainerRef = useRef<HTMLDivElement>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  const currentTimeRef = useRef(currentTime);
+  currentTimeRef.current = currentTime;
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+  const playbackSpeedRef = useRef(playbackSpeed);
+  playbackSpeedRef.current = playbackSpeed;
+
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        const nextTime = currentTime + playbackSpeed;
-        if (nextTime >= maxTime) {
-          setCurrentTime(maxTime);
-          useStore.setState({ isPlaying: false });
-        } else {
-          setCurrentTime(nextTime);
-        }
-      }, 100);
-    }
+    if (!isPlaying) return;
+
+    // Calcul d'un pas adapté à la vitesse choisie (ex: playbackSpeed en années par seconde)
+    // On met à jour toutes les 100ms avec un pas de playbackSpeed / 10 (ou min 1 an pour les grandes vitesses)
+    const tickIntervalMs = 100;
+    const interval = setInterval(() => {
+      const speed = playbackSpeedRef.current;
+      // Incrément par tick de 100ms : speed années par seconde = speed / 10 par tick
+      const step = Math.max(1, Math.round(speed / 10));
+      const nextTime = currentTimeRef.current + step;
+
+      if (nextTime >= maxTime) {
+        setCurrentTime(maxTime);
+        useStore.setState({ isPlaying: false });
+      } else {
+        setCurrentTime(nextTime);
+      }
+    }, tickIntervalMs);
+
     return () => clearInterval(interval);
-  }, [isPlaying, currentTime, playbackSpeed, setCurrentTime, maxTime]);
+  }, [isPlaying, maxTime, setCurrentTime]);
 
   const { entityTracks, trackCount } = useMemo(() => {
     const validEntities = world.entities.filter(e => e.temporalRange && e.geometry);

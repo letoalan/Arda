@@ -7,12 +7,14 @@ interface StorySceneEditorProps {
   scene: StoryScene;
   currentTime: number;
   onUpdateScene: (updatedScene: StoryScene) => void;
+  onOpenSlideEditor?: () => void;
 }
 
 export const StorySceneEditor: React.FC<StorySceneEditorProps> = ({
   scene,
   currentTime,
-  onUpdateScene
+  onUpdateScene,
+  onOpenSlideEditor
 }) => {
   const handleCaptureCamera = () => {
     const map = mapService.getMap();
@@ -62,10 +64,39 @@ export const StorySceneEditor: React.FC<StorySceneEditorProps> = ({
         />
       </div>
 
+      {/* Partie du Plan Argumentatif (Mode EX - Dissertation Géohistorique) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px' }}>
+        <div>
+          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+            Partie du Plan (EX)
+          </label>
+          <input 
+            type="text" 
+            value={scene.partOfArgument || ''} 
+            onChange={(e) => onUpdateScene({ ...scene, partOfArgument: e.target.value })}
+            placeholder="Ex: I.1, II.2"
+            style={{ width: '100%', padding: '6px 8px', fontSize: '0.8rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)' }}
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+            Document Recommandé
+          </label>
+          <input 
+            type="text" 
+            value={scene.recommendedDocumentId || ''} 
+            onChange={(e) => onUpdateScene({ ...scene, recommendedDocumentId: e.target.value })}
+            placeholder="ID document clé (ex: doc-042)"
+            style={{ width: '100%', padding: '6px 8px', fontSize: '0.8rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)' }}
+          />
+        </div>
+      </div>
+
       {/* Récit / Contenu textuel */}
       <div>
         <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-          Texte explicatif (Narration)
+          Texte explicatif (Narration & Scrollytelling)
         </label>
         <textarea 
           rows={3}
@@ -190,6 +221,17 @@ export const StorySceneEditor: React.FC<StorySceneEditorProps> = ({
         <ShieldCheck size={12} color="var(--accent-primary)" />
         <span>Attente d'état idle activée pour la netteté du rendu vidéo</span>
       </div>
+
+      {/* Édition de Diapositive d'Appui */}
+      <button 
+        onClick={() => {
+          if (onOpenSlideEditor) onOpenSlideEditor();
+        }}
+        className="btn btn-primary"
+        style={{ width: '100%', fontSize: '0.8rem', gap: '6px', justifyContent: 'center', marginTop: '4px' }}
+      >
+        <span>★</span> Éditer la Diapositive d'Appui ({scene.blocks?.length || 0} éléments)
+      </button>
     </div>
   );
 };

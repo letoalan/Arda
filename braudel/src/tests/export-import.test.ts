@@ -187,5 +187,19 @@ describe('Export/Import JSON Canonique', () => {
       
       expect(result.success).toBe(false);
     });
+
+    it('devrait importer arda3.json ou un export Arda complet sans rejet de schéma', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const arda3Path = path.resolve(process.cwd(), 'arda3.json');
+      if (fs.existsSync(arda3Path)) {
+        const raw = fs.readFileSync(arda3Path, 'utf-8');
+        const res = await importService.loadFromJSON(raw);
+        if (!res.success) {
+          console.log('REJET IMPORT ARDA3.JSON:', res.errors);
+        }
+        expect(res.success).toBe(true);
+      }
+    });
   });
 });

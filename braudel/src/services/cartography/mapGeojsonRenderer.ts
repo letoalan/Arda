@@ -1,22 +1,76 @@
 // services/cartography/mapGeojsonRenderer.ts
 
 import maplibregl from 'maplibre-gl';
-import type { Entity, Relation } from '../../core/schema/types';
+import type { Entity, Relation, Layer } from '../../core/schema/types';
 
-export function buildEntitiesGeoJSON(entities: Entity[], relations: Relation[], currentTime: number, empireFilter: string) {
+export function buildEntitiesGeoJSON(
+  entities: Entity[],
+  relations: Relation[],
+  currentTime: number,
+  empireFilter: string,
+  layers?: Layer[],
+  epochRange?: { validFrom?: number; validTo?: number }
+) {
   const features: any[] = [];
+
+  const hiddenLayerIds = new Set(
+    (layers || []).filter((l) => l.visible === false).map((l) => l.id)
+  );
 
   const activeEntities = entities.filter((e) => {
     if (e.properties?.isRelation) return false;
+    if (e.layerId && hiddenLayerIds.has(e.layerId)) return false;
     if (!e.temporalRange) return true;
-    return e.temporalRange.validFrom <= currentTime && e.temporalRange.validTo >= currentTime;
+
+    const from = (e.temporalRange as any).validFrom !== undefined
+      ? Number((e.temporalRange as any).validFrom)
+      : Array.isArray(e.temporalRange)
+      ? Number(e.temporalRange[0])
+      : -Infinity;
+
+    const to = (e.temporalRange as any).validTo !== undefined
+      ? Number((e.temporalRange as any).validTo)
+      : Array.isArray(e.temporalRange)
+      ? Number(e.temporalRange[1])
+      : Infinity;
+
+    // 1. Visibilité au point temporel exact
+    if (from <= currentTime && to >= currentTime) return true;
+
+    // 2. Si une plage d'époque spécifique est fournie, tester le chevauchement
+    if (epochRange && epochRange.validFrom !== undefined && epochRange.validTo !== undefined) {
+      return from <= epochRange.validTo && to >= epochRange.validFrom;
+    }
+
+    return false;
   });
+
 
   const activeIds = new Set(activeEntities.map((e) => e.id));
 
   activeEntities.forEach((entity) => {
     if (!entity.geometry) return;
     if (empireFilter !== 'all' && entity.properties?.empire && entity.properties.empire !== empireFilter) return;
+
+    const entityColor =
+      (typeof entity.properties?.color === 'string' && entity.properties.color) ||
+      (typeof (entity as any).color === 'string' && (entity as any).color) ||
+      '#3B82F6';
+
+    const fillOpacity =
+      typeof entity.properties?.fillOpacity === 'number'
+        ? entity.properties.fillOpacity
+        : 0.45;
+
+    const strokeOpacity =
+      typeof entity.properties?.strokeOpacity === 'number'
+        ? entity.properties.strokeOpacity
+        : 0.9;
+
+    const lineWidth =
+      typeof entity.properties?.lineWidth === 'number'
+        ? entity.properties.lineWidth
+        : 1.5;
 
     features.push({
       type: 'Feature',
@@ -26,7 +80,12 @@ export function buildEntitiesGeoJSON(entities: Entity[], relations: Relation[], 
         id: entity.id,
         name: entity.name,
         type: entity.type,
-        color: entity.properties?.color || '#3B82F6',
+        color: entityColor,
+        fillColor: entityColor,
+        strokeColor: entityColor,
+        fillOpacity,
+        strokeOpacity,
+        lineWidth,
         isRelation: false,
       },
     });

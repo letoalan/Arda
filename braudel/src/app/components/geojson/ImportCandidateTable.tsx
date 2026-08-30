@@ -15,6 +15,10 @@ export const ImportCandidateTable: React.FC<ImportCandidateTableProps> = ({
   selectedIds,
   onToggleCandidate,
 }) => {
+  const maxRendered = 250;
+  const displayedCandidates = candidates.slice(0, maxRendered);
+  const overflowCount = candidates.length - maxRendered;
+
   return (
     <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border-color, #333)', borderRadius: '6px' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
@@ -35,7 +39,7 @@ export const ImportCandidateTable: React.FC<ImportCandidateTableProps> = ({
               </td>
             </tr>
           ) : (
-            candidates.map((c) => {
+            displayedCandidates.map((c) => {
               const isSelected = selectedIds.has(c.tempId);
               return (
                 <tr
@@ -66,6 +70,13 @@ export const ImportCandidateTable: React.FC<ImportCandidateTableProps> = ({
                 </tr>
               );
             })
+          )}
+          {overflowCount > 0 && (
+            <tr>
+              <td colSpan={5} style={{ padding: '10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem', fontStyle: 'italic', background: 'rgba(255,255,255,0.02)' }}>
+                + {overflowCount} autre(s) entité(s) masquée(s) dans la liste (recherchez par nom pour filtrer).
+              </td>
+            </tr>
           )}
         </tbody>
       </table>

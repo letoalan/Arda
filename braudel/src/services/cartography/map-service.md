@@ -7,3 +7,4 @@
 - **Suppression des calques vectoriels bruts de dessin** : Les anciens polygones verts opaques, les traits de dessin épais, les hachures et les cercles de sommets ont été retirés de la carte finale pour ne plus masquer le relief.
 - **Fond continental subtil & trait de côte fin** : Un aplat de couleur texturée issue du thème Tolkien (`mapPaintOverrides.landcover`) et un trait de côte délicat (`1.2px`) servent de base sous le relief.
 - **Hillshade procédural 3D au premier plan** : Le calque `braudel-synth-hillshade` (généré à partir du DEM synthétique Terrarium) est rendu au-dessus du fond continental avec ombrage directionnel (315° NW), ombres et lumières adaptées au thème actif.
+- **Exportation et Capture WebGL** : L'option `preserveDrawingBuffer: true` est activée dans la configuration de `maplibregl.Map` afin de garantir la disponibilité continue des tampons graphiques pour la capture instantanée haute définition (PDF, JPEG, Timelapse) sans écran noir.

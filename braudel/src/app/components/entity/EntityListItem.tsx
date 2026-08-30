@@ -25,6 +25,7 @@ interface EntityListItemProps {
   onChangeEditType: (type: string) => void;
   onChangeEditFrom: (from: string) => void;
   onChangeEditTo: (to: string) => void;
+  onChangeColor?: (color: string) => void;
   onStartDrawing: (type: 'Point' | 'LineString' | 'Polygon', geometry?: any) => void;
   onRemoveEntity: () => void;
 }
@@ -50,9 +51,11 @@ export const EntityListItem: React.FC<EntityListItemProps> = ({
   onChangeEditType,
   onChangeEditFrom,
   onChangeEditTo,
+  onChangeColor,
   onStartDrawing,
   onRemoveEntity,
 }) => {
+
   const range = entity.temporalRange ? `[${entity.temporalRange.validFrom} - ${entity.temporalRange.validTo}]` : '';
   const hasGeometry = !!entity.geometry;
   const entityColor: string = (typeof entity.properties?.color === 'string' ? entity.properties.color : '#3B82F6');
@@ -150,7 +153,26 @@ export const EntityListItem: React.FC<EntityListItemProps> = ({
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entityColor, border: '1px solid #ffffff', flexShrink: 0 }} />
+            <label
+              style={{ position: 'relative', width: '14px', height: '14px', borderRadius: '50%', backgroundColor: entityColor, border: '1.5px solid #ffffff', flexShrink: 0, cursor: 'pointer', display: 'inline-block' }}
+              title="Changer la couleur de l'entité"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="color"
+                value={entityColor}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  if (onChangeColor) {
+                    onChangeColor(e.target.value);
+                  } else {
+                    onChangeEditColor(e.target.value);
+                    onSaveInlineEdit();
+                  }
+                }}
+                style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+              />
+            </label>
             <span style={{ fontSize: '0.9rem' }}>
               {entity.name} <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{range}</span>
               <br />

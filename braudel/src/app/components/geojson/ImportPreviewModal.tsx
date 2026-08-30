@@ -1,6 +1,6 @@
 // app/components/geojson/ImportPreviewModal.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { ImportCandidate } from '../../../services/import/candidateIndexer';
 import type { Layer } from '../../../core/schema/types';
 import { X, AlertTriangle, Database, Search, Layers, Check } from 'lucide-react';
@@ -28,6 +28,19 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(candidates.map((c) => c.tempId)));
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLayerId, setSelectedLayerId] = useState(defaultLayerId || (layers[0]?.id ?? 'layer-1'));
+
+  useEffect(() => {
+    setSelectedIds(new Set(candidates.map((c) => c.tempId)));
+    setSearchQuery('');
+  }, [candidates]);
+
+  useEffect(() => {
+    if (defaultLayerId) {
+      setSelectedLayerId(defaultLayerId);
+    } else if (layers.length > 0) {
+      setSelectedLayerId(layers[0].id);
+    }
+  }, [defaultLayerId, layers]);
 
   const filteredCandidates = useMemo(() => {
     if (!searchQuery.trim()) return candidates;

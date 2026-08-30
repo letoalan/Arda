@@ -10,4 +10,4 @@ Gestionnaire d'initialisation des calques vectoriels MapLibre (`braudel-entities
 - `setupVectorLayers(map)` : Instancie les sources et calques pour :
   - Les repères géographiques globaux (`geo-reference-lines`, `geo-reference-labels` : Équateur, Tropique Nord/Sud, Cercles Polaires Arctique/Antarctique).
   - Les grilles et graticules (`grid-layer`, `colonial-graticule-lines`).
-  - Les entités vectorielles Braudel (`braudel-polygons`, `braudel-lines`, `braudel-points`).
+  - Les entités vectorielles Braudel (`braudel-polygons`, `braudel-polygons-outline`, `braudel-lines`, `braudel-points`) avec liaisons de styles dynamiques (`fill-color`, `stroke-color`, `line-color`, `circle-color`).

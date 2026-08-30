@@ -1,0 +1,24 @@
+# Tâches d'implémentation — Chantiers modifications.md
+
+- [x] **Phase 1 : Socle Rendu Cartographique & Vecteurs**
+  - [x] Chantier 3 : Couche `braudel-polygon-outline` et filtres temporels
+  - [x] Chantier 1 : Capture dynamique du style actif à l'export
+  - [x] Chantier 2 : Relief (DEM) distant, hillshade et garde-fou réseau
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 2 : Overlay Diapositive Plein Écran (Chantier 4)**
+  - [x] Remplacement bouton retour par croix `#btn-slide-close`
+  - [x] Style CSS overlay (semi-transparent, `backdrop-filter: blur()`)
+  - [x] Maintien de la carte non masquée et exécution des animations
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 3 : Éditeur de Slide V1 & Rendu (Chantier 5)**
+  - [x] Extension du schéma `ArdaSlideElement` (coordonnées, dimensions, style)
+  - [x] Composant éditeur de slide 16:9 avec outils d'insertion & snapping ([`SlideEditorModal.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/SlideEditorModal.tsx))
+  - [x] Rendu des éléments dans le viewer autonome
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 4 : Sauvegarde, Réédition & Migrations (Chantier 6)**
+  - [x] `schemaVersion` et fonctions de migration / validation ([`arda-doc-parser.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/arda-doc-parser.ts))
+  - [x] Bouton et parsing d'import `.html` dans l'éditeur ([`StoryEditorPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/StoryEditorPanel.tsx))
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 5 : Tests Automatisés & Validation**
+  - [x] Exécution et complétion de la suite de tests unitaires/intégration (28 fichiers de tests, 151 tests passants)
+  - [x] Synchronisation finale des artéfacts et documentation

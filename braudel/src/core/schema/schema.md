@@ -7,9 +7,11 @@ Dossier centralisant l'ensemble des schémas de validation Zod et fabriques d'ob
 
 | Fichier | Rôle |
 |---|---|
-| **`types.ts`** | Types de base (ID, EntityType, LayerType, GeometryType) |
+| Fichier | Rôle |
+|---|---|
+| **`types.ts`** | Types de base (ID, EntityType, LayerType, GeometryType incluant Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon) |
 | **`world.ts`** | Schéma et constructeur de mondes (`createRealWorld`, `createFictionalWorld`) |
-| **`entities.ts`** | Schéma GeoJSON et constructeur d'entités temporelles (`createEntity`) |
+| **`entities.ts`** | Schéma GeoJSON universel (points, lignes, polygones et multi-polygones) et constructeur d'entités temporelles (`createEntity`) tolérant les identifiants textuels de catalogues d'import |
 | **`layers.ts`** | Schéma et constructeur de calques (`createLayer`) |
 | **`relations.ts`** | Schéma et constructeur de relations (`createRelation`) |
 | **`ai.ts`** | Schémas Zod des sessions, propositions et validations IA |
@@ -17,3 +19,4 @@ Dossier centralisant l'ensemble des schémas de validation Zod et fabriques d'ob
 
 ## Fil d'Ariane
 [core/](../core.md) -> **schema/** -> [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md)
+

@@ -9,7 +9,7 @@ import { buildEntitiesGeoJSON, updateMapSourceData } from './mapGeojsonRenderer'
 import { setupVectorLayers } from './mapLayersManager';
 import { createMapLibreDrawInstance, enableDrawingModeOnMap } from './mapDrawingService';
 
-import { toggleGeoReferenceLines } from './modules/grid-reference-layers';
+import { toggleGeoReferenceLines, toggleGraticuleGrid } from './modules/grid-reference-layers';
 import { toggleRhumbLines, updateRhumbPalette } from './modules/rhumb-layers';
 import { setupClimateLayers, updateIceCapsLayer, updateSeaLevelLayer } from './modules/climate-layers';
 import { STYLE_CONFIGS } from '../../core/styles.config';
@@ -71,9 +71,10 @@ export class MapService {
   private lastRiversVisible: boolean = true;
   private lastGeoRefVisible: boolean = true;
   private lastPortulanRhumbVisible: boolean = true;
+  private lastGraticuleVisible: boolean = true;
   private lastProjection: 'mercator' | 'globe' = 'mercator';
   private lastReliefParams: { exaggeration: number; shadowColor: string; highlightColor: string } | null = { exaggeration: 0.5, shadowColor: '#000000', highlightColor: '#FFFFFF' };
-  private lastEntitiesArgs: { entities: any[]; relations: any[]; currentTime: number; proposal?: any } | null = null;
+  private lastEntitiesArgs: { entities: any[]; relations: any[]; currentTime: number; proposal?: any; layers?: any[]; epochRange?: { validFrom?: number; validTo?: number } } | null = null;
   private lastClimateParams: { iceCapLatitude: number; iceCapVisible: boolean; seaLevelMeters: number; seaLevelVisible: boolean } | null = null;
   private lastContinentsData: any = null;
   private worldType: 'real' | 'fictional' = 'real';
@@ -111,7 +112,8 @@ export class MapService {
       style: defaultStyle,
       center: [0, 20],
       zoom: 2,
-    });
+      preserveDrawingBuffer: true,
+    } as any);
 
     this.draw = createMapLibreDrawInstance();
     this.map.addControl(this.draw as any, 'top-right');
@@ -125,7 +127,7 @@ export class MapService {
         return;
       }
       try {
-        setupVectorLayers(this.map);
+        setupVectorLayers(this.map, this.lastPortulanRhumbVisible, this.lastGraticuleVisible);
         if (this.currentStyleId) {
           applyMapPaintOverrides(this.map, this.currentStyleId);
         }
@@ -134,11 +136,9 @@ export class MapService {
         applyRoadsVisibility(this.map, this.lastRoadsVisible);
         applyRiversVisibility(this.map, this.lastRiversVisible);
         toggleGeoReferenceLines(this.map, this.lastGeoRefVisible && this.worldType === 'real');
-        const isPortulanStyle = this.currentStyleId === 'medieval' || this.currentStyleId === 'renaissance';
-        toggleRhumbLines(this.map, this.lastPortulanRhumbVisible && isPortulanStyle);
-        if (isPortulanStyle) {
-          updateRhumbPalette(this.map, this.currentStyleId as any);
-        }
+        toggleRhumbLines(this.map, this.lastPortulanRhumbVisible);
+        toggleGraticuleGrid(this.map, this.lastGraticuleVisible);
+        updateRhumbPalette(this.map, (this.currentStyleId as any) || 'renaissance');
         setupClimateLayers(this.map);
         if (this.lastClimateParams) {
           updateIceCapsLayer(this.map, this.lastClimateParams.iceCapLatitude, this.lastClimateParams.iceCapVisible);
@@ -159,7 +159,13 @@ export class MapService {
           applyReliefStyle(this.map, this.lastReliefParams.exaggeration, this.lastReliefParams.shadowColor, this.lastReliefParams.highlightColor, this.worldType);
         }
         if (this.lastEntitiesArgs) {
-          this.updateEntities(this.lastEntitiesArgs.entities, this.lastEntitiesArgs.relations, this.lastEntitiesArgs.currentTime, this.lastEntitiesArgs.proposal);
+          this.updateEntities(
+            this.lastEntitiesArgs.entities,
+            this.lastEntitiesArgs.relations,
+            this.lastEntitiesArgs.currentTime,
+            this.lastEntitiesArgs.proposal,
+            this.lastEntitiesArgs.layers
+          );
         }
         if (this.lastContinentsData) {
           this.renderContinents(this.lastContinentsData);
@@ -206,11 +212,11 @@ export class MapService {
     return this.map;
   }
 
-  updateEntities(entities: any[], relations: any[], currentTime: number, proposal?: any) {
-    this.lastEntitiesArgs = { entities, relations, currentTime, proposal };
+  updateEntities(entities: any[], relations: any[], currentTime: number, proposal?: any, layers?: any[], epochRange?: { validFrom?: number; validTo?: number }) {
+    this.lastEntitiesArgs = { entities, relations, currentTime, proposal, layers, epochRange };
     if (!this.map || !this.map.isStyleLoaded()) return;
 
-    const geojsonData = buildEntitiesGeoJSON(entities, relations, currentTime, this.activeEmpireFilter);
+    const geojsonData = buildEntitiesGeoJSON(entities, relations, currentTime, this.activeEmpireFilter, layers, epochRange);
 
     if (proposal && proposal.type === 'addEntity' && proposal.data?.geometry) {
       geojsonData.features.push({
@@ -295,11 +301,9 @@ export class MapService {
         applyBasemapStyle(this.map, styleId);
         applyMapPaintOverrides(this.map, styleId);
       }
-      const isPortulanStyle = styleId === 'medieval' || styleId === 'renaissance' || styleId === 'al_idrisi';
-      toggleRhumbLines(this.map, this.lastPortulanRhumbVisible && isPortulanStyle);
-      if (isPortulanStyle) {
-        updateRhumbPalette(this.map, styleId);
-      }
+      toggleRhumbLines(this.map, this.lastPortulanRhumbVisible);
+      toggleGraticuleGrid(this.map, this.lastGraticuleVisible);
+      updateRhumbPalette(this.map, (styleId as any) || 'renaissance');
       if (this.lastClimateParams) {
         updateSeaLevelLayer(this.map, this.lastClimateParams.seaLevelMeters, this.lastClimateParams.seaLevelVisible, styleId);
       }
@@ -333,8 +337,12 @@ export class MapService {
 
   setPortulanRhumbVisible(visible: boolean) {
     this.lastPortulanRhumbVisible = visible;
-    const isPortulanStyle = this.currentStyleId === 'medieval' || this.currentStyleId === 'renaissance';
-    if (this.map) toggleRhumbLines(this.map, visible && isPortulanStyle);
+    if (this.map) toggleRhumbLines(this.map, visible);
+  }
+
+  setGraticuleVisible(visible: boolean) {
+    this.lastGraticuleVisible = visible;
+    if (this.map) toggleGraticuleGrid(this.map, visible);
   }
 
   setProjection(projectionType: 'mercator' | 'globe') {

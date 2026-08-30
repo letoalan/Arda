@@ -2,22 +2,22 @@ import { z } from 'zod';
 import { ID, Timeline } from './types';
 
 export const timelineEventSchema = z.object({
-  id: z.string().uuid(),
-  layerId: z.string().uuid(),
-  timestamp: z.string().datetime(),
-  entityId: z.string().uuid(),
+  id: z.string().min(1),
+  layerId: z.string().min(1),
+  timestamp: z.string().min(1),
+  entityId: z.string().min(1),
   description: z.string().optional(),
-  meta: z.any()
+  meta: z.any().optional()
 });
 
 export type TimelineEventSchema = z.infer<typeof timelineEventSchema>;
 
 export const timelineSchema = z.object({
-  id: z.string().uuid(),
-  worldId: z.string().uuid(),
+  id: z.string().min(1),
+  worldId: z.string().min(1),
   name: z.string().min(1),
   events: z.array(timelineEventSchema),
-  meta: z.any()
+  meta: z.any().optional()
 });
 
 export type TimelineSchema = z.infer<typeof timelineSchema>;

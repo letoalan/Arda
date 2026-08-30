@@ -12,6 +12,7 @@ export function createUiSlice(set: any) {
     setBasemapRiversVisible: (visible: boolean) => set({ basemapRiversVisible: visible }),
     setGeoReferenceLinesVisible: (visible: boolean) => set({ geoReferenceLinesVisible: visible }),
     setPortulanRhumbVisible: (visible: boolean) => set({ portulanRhumbVisible: visible }),
+    setGraticuleVisible: (visible: boolean) => set({ graticuleVisible: visible }),
     setMapProjection: (proj: any) => set({ mapProjection: proj }),
     setActiveEmpire: (empire: 'all' | 'british' | 'french' | 'portuguese' | 'neutral') => set({ activeEmpire: empire }),
     setCurrentTime: (time: number) => set({ currentTime: time }),

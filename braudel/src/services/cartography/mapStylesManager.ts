@@ -24,18 +24,6 @@ export function applyMapPaintOverrides(map: maplibregl.Map, styleId: BasemapStyl
 
   const styleConfig = STYLE_CONFIGS.find((s) => s.id === styleId);
 
-  // Gérer la visibilité des graticules / méridiens propres au style
-  const hasGraticule = Boolean(styleConfig?.graticule?.enabled || styleConfig?.id === 'colonial');
-  if (map.getLayer('colonial-graticule-lines')) {
-    try {
-      map.setLayoutProperty('colonial-graticule-lines', 'visibility', hasGraticule ? 'visible' : 'none');
-    } catch (e) {}
-  }
-  if (map.getLayer('colonial-graticule-labels')) {
-    try {
-      map.setLayoutProperty('colonial-graticule-labels', 'visibility', hasGraticule ? 'visible' : 'none');
-    } catch (e) {}
-  }
 
   // 1. Injection du fond raster pour l'imagerie Esri Satellitaire ou NASA Vue Nocturne
   if (styleId === 'contemporary_satellite' || styleId === 'nasa_night_lights') {

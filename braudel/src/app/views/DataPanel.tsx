@@ -1,35 +1,69 @@
 // views/DataPanel.tsx
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { useStore } from '../state/store';
 import { Database, Download, UploadCloud, XCircle } from 'lucide-react';
 import { mapService } from '../../services/cartography/map-service';
 import { STYLE_CONFIGS } from '../../core/styles.config';
-import { exportToPDF, exportToJPEG } from '../../services/export/export-multimedia';
+import { exportMultiEpochPDF, exportTimelineDrivenPDF, exportToJPEG } from '../../services/export/export-multimedia';
+
+
 import { generateStandaloneHtml } from '../../services/export/standalone-template';
 import { exportStoryboardZIP } from '../../services/export/storyboard-export';
 import { exportStoryToWebM } from '../../services/export/video-export';
 import { loadStoryFromStorage } from '../../services/export/story-export';
 import { ExportMultimediaSection } from '../components/data/ExportMultimediaSection';
+import { ExportPdfModal } from '../components/data/ExportPdfModal';
+import { GEOPOLITICA_SOURCES } from '../../services/import/geopoliticaRegistry';
+import { getCatalogTemporalEntities } from '../../services/import/geojson-catalog-service';
+
+
 
 export const DataPanel: React.FC = () => {
-  const { 
-    exportWorld, 
-    importWorldFile, 
-    exportLoading, 
-    exportError, 
-    importError, 
+  const {
+    exportWorld,
+    importWorldFile,
+    exportLoading,
+    exportError,
+    importError,
     clearErrors,
     world,
     currentTime,
+    startYear,
+    endYear,
     basemapStyle,
+    viewMode,
+    mapProjection,
+    geoReferenceLinesVisible,
+    portulanRhumbVisible,
+    graticuleVisible,
+    basemapLabelsVisible,
+    basemapBordersVisible,
+    basemapRoadsVisible,
+    basemapRiversVisible,
     setCurrentTime
   } = useStore();
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [exportProgress, setExportProgress] = useState<number | null>(null);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
 
   const worldName = world.world[0]?.name || 'Monde Braudel';
+
+  const activePeriod = useMemo(() => {
+    if (!GEOPOLITICA_SOURCES.length) return undefined;
+    const sorted = [...GEOPOLITICA_SOURCES].sort((a, b) => a.referenceYear - b.referenceYear);
+    let candidate = sorted[0];
+    for (const source of sorted) {
+      if (source.referenceYear <= currentTime) {
+        candidate = source;
+      } else {
+        break;
+      }
+    }
+    return candidate?.label;
+  }, [currentTime]);
 
   const handleExportJson = async () => {
     try {
@@ -50,27 +84,122 @@ export const DataPanel: React.FC = () => {
     });
   };
 
-  const handlePdfExport = async () => {
+  const handleOpenPdfModal = () => {
+    setIsPdfModalOpen(true);
+  };
+
+  const handleConfirmSinglePdf = async (year: number, periodLabel?: string) => {
+    const map = mapService.getMap();
+    if (!map) return;
+    setIsPdfExporting(true);
+    try {
+      const state = useStore.getState();
+      const currentWorld = state.world;
+      const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
+      const catalogEntities = getCatalogTemporalEntities();
+      await exportTimelineDrivenPDF(
+        worldName,
+        config,
+        map,
+        (t) => setCurrentTime(t),
+        (t) => {
+          const liveWorld = useStore.getState().world;
+          mapService.updateEntities(liveWorld.entities, liveWorld.relations, t, undefined, liveWorld.layers);
+        },
+        currentWorld.entities,
+        currentWorld.relations,
+        {
+          startTime: year,
+          multi: false,
+          catalogEntities,
+          historicalPeriod: periodLabel || activePeriod,
+        }
+      );
+      setIsPdfModalOpen(false);
+    } catch (err) {
+      console.error('Erreur lors de l\'export PDF:', err);
+    } finally {
+      setIsPdfExporting(false);
+    }
+  };
+
+  const handleConfirmMultiPdf = async (selectedEpochs: { year: number; label: string; referenceYear?: number; validFrom?: number; validTo?: number }[]) => {
+    const map = mapService.getMap();
+    if (!map) return;
+    setIsPdfExporting(true);
+    setExportProgress(0);
+    const initialTime = currentTime;
+    try {
+      const state = useStore.getState();
+      const currentWorld = state.world;
+      const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
+      await exportMultiEpochPDF(
+        worldName,
+        selectedEpochs,
+        config,
+        map,
+        (year) => setCurrentTime(year),
+        (time, epochTarget) => {
+          const liveWorld = useStore.getState().world;
+          const epochRange = epochTarget && epochTarget.validFrom !== undefined && epochTarget.validTo !== undefined
+            ? { validFrom: epochTarget.validFrom, validTo: epochTarget.validTo }
+            : undefined;
+          mapService.updateEntities(liveWorld.entities, liveWorld.relations, time, undefined, liveWorld.layers, epochRange);
+        },
+        currentWorld.entities,
+        currentWorld.relations,
+        {},
+        (pct) => setExportProgress(pct)
+      );
+      setIsPdfModalOpen(false);
+    } catch (err) {
+      console.error('Erreur lors de l\'export Atlas PDF multi-époques:', err);
+    } finally {
+      setIsPdfExporting(false);
+      setExportProgress(null);
+      setCurrentTime(initialTime);
+      const liveWorld = useStore.getState().world;
+      mapService.updateEntities(liveWorld.entities, liveWorld.relations, initialTime, undefined, liveWorld.layers);
+    }
+  };
+
+
+
+
+  const handleJpegExport = async () => {
     const map = mapService.getMap();
     if (!map) return;
     const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
-    await exportToPDF(worldName, currentTime, config, map, world.entities);
-  };
-
-  const handleJpegExport = () => {
-    const map = mapService.getMap();
-    if (!map) return;
-    exportToJPEG(worldName, currentTime, map);
+    await exportToJPEG(worldName, currentTime, map, config);
   };
 
   const handleHtmlSimpleExport = () => {
     const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
+    const storyProject = loadStoryFromStorage(worldName);
+    const effectiveConfig = {
+      ...config,
+      demEnabled: viewMode === '3D' || Boolean((config as any).demEnabled),
+    };
+
     const htmlContent = generateStandaloneHtml(
       worldName,
-      config,
+      effectiveConfig,
       { type: 'FeatureCollection', features: world.entities.map(e => ({ ...e, type: 'Feature' })) },
       { type: 'FeatureCollection', features: world.relations.map(r => ({ ...r, type: 'Feature' })) },
-      'map'
+      storyProject?.scenes && storyProject.scenes.length > 0 ? 'story' : 'map',
+      storyProject,
+      undefined,
+      {
+        geoReferenceLinesVisible,
+        portulanRhumbVisible,
+        graticuleVisible,
+        basemapLabelsVisible,
+        basemapBordersVisible,
+        basemapRoadsVisible,
+        basemapRiversVisible,
+        projection: mapProjection,
+        pitch: viewMode === '3D' ? 45 : 0,
+      }
     );
 
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
@@ -141,12 +270,27 @@ export const DataPanel: React.FC = () => {
 
       <ExportMultimediaSection
         exportProgress={exportProgress}
-        onPdfExport={handlePdfExport}
+        onPdfExport={handleOpenPdfModal}
         onJpegExport={handleJpegExport}
         onHtmlSimpleExport={handleHtmlSimpleExport}
         onStoryboardExport={handleStoryboardExport}
         onWebmExport={handleWebmExport}
       />
+
+      <ExportPdfModal
+        isOpen={isPdfModalOpen}
+        currentTime={currentTime}
+        startYear={startYear}
+        endYear={endYear}
+        entities={world.entities}
+        relations={world.relations}
+        isExporting={isPdfExporting}
+        exportProgress={exportProgress}
+        onConfirmSingle={handleConfirmSinglePdf}
+        onConfirmMulti={handleConfirmMultiPdf}
+        onClose={() => !isPdfExporting && setIsPdfModalOpen(false)}
+      />
     </div>
   );
 };
+

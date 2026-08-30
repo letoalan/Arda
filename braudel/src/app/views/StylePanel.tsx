@@ -46,21 +46,29 @@ export const StylePanel: React.FC = () => {
     setGeoReferenceLinesVisible,
     portulanRhumbVisible,
     setPortulanRhumbVisible,
+    graticuleVisible,
+    setGraticuleVisible,
     mapProjection,
     setMapProjection,
   } = useStore();
   const reliefStyle = world.styles.find(s => s.type === 'relief');
   const isFictional = world.world[0]?.worldType === 'fictional';
 
-  const currentProps = reliefStyle?.properties || {
-    exaggeration: 0.5,
-    shadowColor: '#000000',
-    highlightColor: '#FFFFFF'
-  };
+  const reliefProps = reliefStyle?.properties as {
+    exaggeration?: number;
+    shadowColor?: string;
+    highlightColor?: string;
+  } | undefined;
 
-  const [exaggeration, setExaggeration] = useState(currentProps.exaggeration);
-  const [shadowColor, setShadowColor] = useState(currentProps.shadowColor);
-  const [highlightColor, setHighlightColor] = useState(currentProps.highlightColor);
+  const [exaggeration, setExaggeration] = useState<number>(
+    typeof reliefProps?.exaggeration === 'number' ? reliefProps.exaggeration : 0.5
+  );
+  const [shadowColor, setShadowColor] = useState<string>(
+    typeof reliefProps?.shadowColor === 'string' ? reliefProps.shadowColor : '#000000'
+  );
+  const [highlightColor, setHighlightColor] = useState<string>(
+    typeof reliefProps?.highlightColor === 'string' ? reliefProps.highlightColor : '#FFFFFF'
+  );
 
   useEffect(() => {
     if (isFictional) {
@@ -72,10 +80,15 @@ export const StylePanel: React.FC = () => {
   }, [isFictional, basemapStyle, setBasemapStyle]);
 
   useEffect(() => {
-    if (reliefStyle) {
-      setExaggeration(reliefStyle.properties.exaggeration);
-      setShadowColor(reliefStyle.properties.shadowColor);
-      setHighlightColor(reliefStyle.properties.highlightColor);
+    if (reliefStyle?.properties) {
+      const props = reliefStyle.properties as {
+        exaggeration?: number;
+        shadowColor?: string;
+        highlightColor?: string;
+      };
+      if (typeof props.exaggeration === 'number') setExaggeration(props.exaggeration);
+      if (typeof props.shadowColor === 'string') setShadowColor(props.shadowColor);
+      if (typeof props.highlightColor === 'string') setHighlightColor(props.highlightColor);
     }
   }, [reliefStyle]);
 
@@ -211,6 +224,16 @@ export const StylePanel: React.FC = () => {
               style={{ accentColor: '#38bdf8', width: '16px', height: '16px' }}
             />
             Lignes de rhumb & réseau portulan (32 vents)
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={graticuleVisible} 
+              onChange={(e) => setGraticuleVisible(e.target.checked)} 
+              style={{ accentColor: '#38bdf8', width: '16px', height: '16px' }}
+            />
+            Méridiens & parallèles (Graticule vectoriel 10°)
           </label>
         </div>
 

@@ -1,23 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../state/store';
-import { BookOpen, Globe, Play } from 'lucide-react';
-import { StoryProject, StoryScene } from '../../core/schema/story';
+import { BookOpen, Globe, Play, FolderOpen } from 'lucide-react';
+import { StoryProject, StoryScene, StorySlideBlock } from '../../core/schema/story';
 import { loadStoryFromStorage, saveStoryToStorage } from '../../services/export/story-export';
 import { StorySceneList } from '../components/story/StorySceneList';
 import { StorySceneEditor } from '../components/story/StorySceneEditor';
 import { generateStandaloneHtml } from '../../services/export/standalone-template';
 import { STYLE_CONFIGS } from '../../core/styles.config';
+import { parseArdaDocFromHtml, migrateArdaDoc } from '../../services/export/modules/arda-doc-parser';
+import { SlideEditorModal } from './SlideEditorModal';
 
 interface StoryEditorPanelProps {
   onStartPreview?: (story: StoryProject) => void;
 }
 
 export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPreview }) => {
-  const { world, currentTime, basemapStyle } = useStore();
+  const { 
+    world, 
+    currentTime, 
+    basemapStyle, 
+    viewMode, 
+    mapProjection,
+    geoReferenceLinesVisible, 
+    portulanRhumbVisible, 
+    graticuleVisible,
+    basemapLabelsVisible, 
+    basemapBordersVisible,
+    basemapRoadsVisible,
+    basemapRiversVisible
+  } = useStore();
   const worldName = world.world[0]?.name || 'Monde Braudel';
 
   const [story, setStory] = useState<StoryProject>(() => loadStoryFromStorage(worldName));
   const [activeSceneId, setActiveSceneId] = useState<string | null>(story.scenes[0]?.id || null);
+  const [isSlideEditorOpen, setIsSlideEditorOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     saveStoryToStorage(story);
@@ -76,15 +93,40 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
     setStory({ ...story, scenes: newScenes });
   };
 
+  const handleSaveSlideBlocks = (blocks: StorySlideBlock[]) => {
+    if (!activeScene) return;
+    handleUpdateScene({
+      ...activeScene,
+      blocks
+    });
+  };
+
   const handleExportStoryHtml = () => {
     const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
+    const effectiveConfig = {
+      ...config,
+      demEnabled: viewMode === '3D' || Boolean((config as any).demEnabled),
+    };
+
     const htmlContent = generateStandaloneHtml(
       worldName,
-      config,
+      effectiveConfig,
       { type: 'FeatureCollection', features: world.entities.map(e => ({ ...e, type: 'Feature' })) },
       { type: 'FeatureCollection', features: world.relations.map(r => ({ ...r, type: 'Feature' })) },
       'story',
-      story
+      story,
+      undefined,
+      {
+        geoReferenceLinesVisible,
+        portulanRhumbVisible,
+        graticuleVisible,
+        basemapLabelsVisible,
+        basemapBordersVisible,
+        basemapRoadsVisible,
+        basemapRiversVisible,
+        projection: mapProjection,
+        pitch: viewMode === '3D' ? 45 : 0,
+      }
     );
 
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
@@ -92,6 +134,61 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
     link.download = `${worldName.toLowerCase().replace(/\s+/g, '_')}_recit_bento.html`;
     link.href = URL.createObjectURL(blob);
     link.click();
+  };
+
+  const handleImportArdaHtml = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result as string;
+        const rawDoc = parseArdaDocFromHtml(text);
+        const migratedDoc = migrateArdaDoc(rawDoc);
+
+        // Reconversion du document en scènes de récit
+        const reconstructedScenes: StoryScene[] = (migratedDoc.waypoints || []).map((wp, idx) => {
+          const matchingSlide = (migratedDoc.slides || []).find(s => wp.slideRefs?.includes(s.id) || s.attachedToWaypoint === wp.id);
+          return {
+            id: wp.id.replace('wp-', '') || `scene-${idx + 1}`,
+            title: wp.label || `Étape ${idx + 1}`,
+            body: wp.narrationText,
+            mapState: {
+              center: wp.cameraState?.center || [12.5, 42.0],
+              zoom: wp.cameraState?.zoom ?? 4,
+              pitch: wp.cameraState?.pitch || 0,
+              bearing: wp.cameraState?.bearing || 0,
+              timelineYear: wp.year,
+              visibleLayerIds: []
+            },
+            layout: 'split',
+            blocks: matchingSlide?.elements as any,
+            transition: {
+              profile: 'standard',
+              durationMode: 'auto',
+              pauseAfterMs: 800,
+              reduceMotionPolicy: 'respect'
+            }
+          };
+        });
+
+        const newStory: StoryProject = {
+          id: `imported-${Date.now()}`,
+          title: migratedDoc.title || 'Récit importé',
+          defaultFps: 30,
+          scenes: reconstructedScenes.length > 0 ? reconstructedScenes : story.scenes
+        };
+
+        setStory(newStory);
+        if (newStory.scenes.length > 0) setActiveSceneId(newStory.scenes[0].id);
+        alert(`Document ARDA "${migratedDoc.title}" importé avec succès (${reconstructedScenes.length} scènes restaurées).`);
+      } catch (err: any) {
+        alert(`Erreur lors de l'importation du fichier HTML : ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -112,7 +209,7 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
       </div>
 
       {/* Actions Générales */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
         <button 
           onClick={() => onStartPreview && onStartPreview(story)}
           className="btn btn-primary"
@@ -126,7 +223,25 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
           className="btn btn-secondary"
           style={{ fontSize: '0.75rem', gap: '6px', justifyContent: 'center' }}
         >
-          <Globe size={14} /> Exporter en HTML Bento
+          <Globe size={14} /> Exporter HTML Bento
+        </button>
+      </div>
+
+      {/* Importation Canonique */}
+      <div style={{ marginBottom: '16px' }}>
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          accept=".html" 
+          style={{ display: 'none' }} 
+          onChange={handleImportArdaHtml} 
+        />
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          className="btn btn-secondary"
+          style={{ width: '100%', fontSize: '0.75rem', gap: '6px', justifyContent: 'center' }}
+        >
+          <FolderOpen size={14} /> Ouvrir un fichier ARDA (.html)
         </button>
       </div>
 
@@ -148,6 +263,18 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
           scene={activeScene}
           currentTime={currentTime}
           onUpdateScene={handleUpdateScene}
+          onOpenSlideEditor={() => setIsSlideEditorOpen(true)}
+        />
+      )}
+
+      {/* Modale d'Édition de Diapositive 16:9 */}
+      {activeScene && (
+        <SlideEditorModal 
+          isOpen={isSlideEditorOpen}
+          slideTitle={activeScene.title || 'Sans titre'}
+          initialBlocks={activeScene.blocks || []}
+          onClose={() => setIsSlideEditorOpen(false)}
+          onSave={handleSaveSlideBlocks}
         />
       )}
     </div>

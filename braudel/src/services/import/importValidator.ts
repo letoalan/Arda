@@ -1,6 +1,6 @@
 // services/import/importValidator.ts
 
-import { DatabaseSchema, validateDatabase } from '../../core/schema';
+import { DatabaseSchema, databaseSchema } from '../../core/schema/index';
 
 export interface ImportResult {
   success: boolean;
@@ -73,16 +73,21 @@ export async function validateAndParseJSON(raw: string): Promise<ImportResult> {
     };
   }
 
-  if (validateDatabase(parsed)) {
+  const validationResult = databaseSchema.safeParse(parsed);
+  if (validationResult.success) {
     return {
       success: true,
       data: parsed,
       warnings: warnings.length > 0 ? warnings : undefined
     };
   } else {
+    const zodErrors = validationResult.error.issues.map(
+      (iss) => `${iss.path.join('.')}: ${iss.message}`
+    );
+    console.error('Erreurs de validation Zod:', zodErrors.slice(0, 10));
     return {
       success: false,
-      errors: ['Incompatibilité de schéma de base de données'],
+      errors: ['Incompatibilité de schéma de base de données', ...zodErrors.slice(0, 10)],
       warnings
     };
   }

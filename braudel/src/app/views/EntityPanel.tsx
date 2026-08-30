@@ -20,7 +20,7 @@ export const EntityPanel: React.FC = () => {
     removeEntity, 
     selectedEntityId, 
     setSelectedEntity, 
-    updateEntityTemporalRange,
+    updateEntity,
     clearEntityGeometry, 
     addRelation,
     currentTime,
@@ -103,23 +103,16 @@ export const EntityPanel: React.FC = () => {
       return;
     }
 
-    const updatedEntities = world.entities.map(e => {
-      if (e.id === entityId) {
-        return {
-          ...e,
-          name: editName.trim() || e.name,
-          type: (editType || e.type) as Entity['type'],
-          properties: {
-            ...e.properties,
-            color: editColor
-          }
-        };
-      }
-      return e;
+    updateEntity(entityId, {
+      name: editName.trim() || undefined,
+      type: (editType || 'place') as Entity['type'],
+      color: editColor,
+      properties: {
+        color: editColor,
+      },
+      temporalRange: (vFrom !== undefined && vTo !== undefined) ? { validFrom: vFrom, validTo: vTo } : undefined,
     });
 
-    useStore.setState({ world: { ...world, entities: updatedEntities } });
-    updateEntityTemporalRange(entityId, vFrom, vTo);
     setEditingEntityId(null);
   };
 
@@ -184,11 +177,13 @@ export const EntityPanel: React.FC = () => {
             onChangeEditType={setEditType}
             onChangeEditFrom={setEditFrom}
             onChangeEditTo={setEditTo}
+            onChangeColor={(newColor) => updateEntity(entity.id, { color: newColor, properties: { color: newColor } })}
             onStartDrawing={(type, geom) => startDrawing(entity.id, type, geom)}
             onRemoveEntity={() => removeEntity(entity.id)}
           />
         ))}
       </ul>
+
 
       {selectedEntity && (
         <EntityDetailsCard
