@@ -13,7 +13,7 @@ Ce secteur regroupe les générateurs d'exportations aux différents formats pri
 | **`export-multimedia.ts`** | Façade d'exportation PDF normalisés A4, JPEG HD et captures chronologiques | [export-multimedia.md](./export-multimedia.md) |
 | **`modules/`** | Sous-modules spécialisés (< 200 lignes) pour l'export cartographique et multimédia | [modules/modules.md](./modules/modules.md) |
 | **`pdf-timeline-utils.ts`** | Utilitaires d'extraction polymorphe des époques et du point médian | [pdf-timeline-utils.md](./pdf-timeline-utils.md) |
-| **`storyboard-export.ts`** | Génération de packs Zip storyboard | - |
+| **`storyboard-export.ts`** | Génération de packs Zip storyboard (visuels HD, story.json, script.md) | [storyboard-export.md](./storyboard-export.md) |
 | **`video-export.ts`** | Exportation de vidéos commentées | - |
 
 ## Fil d'Ariane

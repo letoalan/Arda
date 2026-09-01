@@ -4,7 +4,7 @@ import { computeChangepoints, computeCoverageTimelineYears } from '../../timelin
 import { getHistoricalPeriodLabel } from '../pdf-timeline-utils';
 import { GEOPOLITICA_SOURCES } from '../../import/geopoliticaRegistry';
 import { buildEntitiesGeoJSON } from '../../cartography/mapGeojsonRenderer';
-import { PDFExportOptions, EpochExportTarget, isEntityVisibleAt } from './pdf-types';
+import { PDFExportOptions, EpochExportTarget, isEntityVisibleAt, isRelationVisibleAt } from './pdf-types';
 import { updateEntitiesAndWaitForRender, waitForBackgroundTilesReady } from './pdf-map-capture';
 import { renderMapPDFPage } from './pdf-page-renderer';
 
@@ -53,7 +53,7 @@ export async function exportTimelineDrivenPDF(
   styleConfig: StyleConfig,
   map: any,
   setTime: (year: number) => void,
-  updateMapEntities: (year: number) => void,
+  _updateMapEntities: (year: number) => void,
   entities: any[] = [],
   relations: any[] = [],
   options: {
@@ -98,7 +98,6 @@ export async function exportTimelineDrivenPDF(
     setTime(year);
     const geojson = buildEntitiesGeoJSON(entities || [], relations || [], year, 'all', []);
     await updateEntitiesAndWaitForRender(map, 'braudel-entities', geojson);
-    updateMapEntities(year);
 
     await waitForBackgroundTilesReady(map);
 
@@ -112,14 +111,18 @@ export async function exportTimelineDrivenPDF(
       historicalPeriod: pagePeriodLabel,
     };
 
+    // Filtrage strict : seules les entités visibles à cet instant précis alimentent la légende
+    const epochEntities = (entities || []).filter(e => isEntityVisibleAt(e, year));
+    const epochRelations = (relations || []).filter(r => isRelationVisibleAt(r, year));
+
     await renderMapPDFPage(
       doc,
       worldName,
       year,
       styleConfig,
       map,
-      entities,
-      relations,
+      epochEntities,
+      epochRelations,
       pageOptions,
       i + 1,
       totalPages
@@ -146,7 +149,7 @@ export async function exportMultiEpochPDF(
   styleConfig: StyleConfig,
   map: any,
   setTime: (year: number) => void,
-  updateMapEntities: (year: number, epochTarget?: EpochExportTarget) => void,
+  _updateMapEntities: (year: number, epochTarget?: EpochExportTarget) => void,
   entities: any[] = [],
   relations: any[] = [],
   options: PDFExportOptions = {},
@@ -174,6 +177,7 @@ export async function exportMultiEpochPDF(
       ? { validFrom: epoch.validFrom, validTo: epoch.validTo }
       : undefined;
 
+    // Vérifier si des entités projet couvrent cette période (test de chevauchement pour décider du fallback catalogue)
     const matchingEntities = (entities || []).filter(e => isEntityVisibleAt(e, snapshotYear, epochRange));
     let geojsonToInject: any = null;
 
@@ -223,9 +227,9 @@ export async function exportMultiEpochPDF(
     if (geojsonToInject) {
       await updateEntitiesAndWaitForRender(map, 'braudel-entities', geojsonToInject);
     } else {
-      const geojson = buildEntitiesGeoJSON(entities || [], relations || [], snapshotYear, 'all', [], epochRange);
+      // Filtrage point-in-time strict : PAS d'epochRange pour éviter l'inclusion d'entités des époques adjacentes
+      const geojson = buildEntitiesGeoJSON(entities || [], relations || [], snapshotYear, 'all', []);
       await updateEntitiesAndWaitForRender(map, 'braudel-entities', geojson);
-      updateMapEntities(snapshotYear, epoch);
     }
 
     await waitForBackgroundTilesReady(map);
@@ -239,14 +243,19 @@ export async function exportMultiEpochPDF(
       historicalPeriod: epoch.label || options.historicalPeriod,
     };
 
+    // Filtrage point-in-time strict : seules les entités visibles à snapshotYear alimentent la légende
+    // (pas d'epochRange pour éviter les chevauchements avec les époques adjacentes)
+    const epochEntities = (entities || []).filter(e => isEntityVisibleAt(e, snapshotYear));
+    const epochRelations = (relations || []).filter(r => isRelationVisibleAt(r, snapshotYear));
+
     await renderMapPDFPage(
       doc,
       worldName,
       snapshotYear,
       styleConfig,
       map,
-      entities,
-      relations,
+      epochEntities,
+      epochRelations,
       pageOptions,
       i + 1,
       totalPages,

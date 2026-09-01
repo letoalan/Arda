@@ -459,10 +459,14 @@ describe('Bento HTML Map-Story Export Tests (bento.md & bento2.md)', () => {
     expect(html).toContain('function toggleSidecarOrientation');
     expect(html).toContain('IntersectionObserver');
 
-    // Phase 5 : Mini-carte de contexte macro
+    // Phase 5 : Mini-carte de contexte macro / continentale avec échelle différenciée
     expect(html).toContain('id="context-minimap-box"');
     expect(html).toContain('id="context-minimap-canvas"');
     expect(html).toContain('id="context-minimap-indicator"');
     expect(html).toContain('function initContextMinimap');
+    expect(html).toContain('continentalZoom');
+    expect(html).toContain('defaultMacroZoom');
+    expect(html).toContain('is-continental-view');
+    expect(html).toContain('Continentale');
   });
 });

@@ -32,10 +32,12 @@ export async function exportTimeLapseZIP(
   startYear: number,
   endYear: number,
   stepYears: number,
-  progressCallback?: (pct: number) => void
+  progressCallback?: (pct: number) => void,
+  styleConfig?: StyleConfig
 ) {
   const zip = new JSZip();
   const years: number[] = [];
+  const styleBg = styleConfig?.mapPaintOverrides?.background || '#ffffff';
   
   for (let y = startYear; y <= endYear; y += stepYears) {
     years.push(y);
@@ -49,7 +51,7 @@ export async function exportTimeLapseZIP(
     setTime(year);
     await new Promise((r) => setTimeout(r, 450));
     
-    const { dataUrl } = await captureMapCanvas(map);
+    const { dataUrl } = await captureMapCanvas(map, styleBg);
     const base64Data = dataUrl.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
     
     const safeYear = year >= 0 ? `an_${year}` : `av_jc_${Math.abs(year)}`;

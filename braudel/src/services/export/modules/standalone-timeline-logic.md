@@ -11,12 +11,13 @@
 - Le **Mode EX (Sidecar Scrollytelling)** (`initModeExSidecar`, `toggleSidecarMode`, `toggleSidecarOrientation`) :
   - Synchronisation scroll $\leftrightarrow$ caméra via `IntersectionObserver` avec durée de vol cinématique calibrée (800ms).
   - Déclencheurs textuels interactifs (`Map Actions`) avec zoom ponctuel et popover inline avec retour au fil (`triggerMapAction`).
-  - Mini-carte de repère macro permanente (`initContextMinimap`) synchronisée avec le déplacement cartographique.
+  - **Mini-carte de repère multi-échelle (`initContextMinimap`)** :
+    - **Vue Macro** : Zoom mondial planétaire dézoomé (`zoom: 0.9`, centré sur la vue globale), avec point indicateur projeté selon sa position géographique sur le globe.
+    - **Vue Continentale** : Zoom régional/continental rapproché (`zoom: 3.2`, centré sur le point d'observation courant de la caméra principale `map.getCenter()`), boîte élargie à 220px, badge `Continentale` vert émeraude et suivi continu de la zone géographique en déplacement.
+    - Bascule interactive au clic avec transitions de vol (`easeTo`) et redimensionnement dynamique du canvas.
   - Progression diachronique intégrée sur ruban vertical (`updateVerticalTimelineProgress`).
 - Le **recalcul dynamique et instantané de la légende** (`renderLegendContent`) à chaque changement de date selon les entités actives (surfaces, lignes, points).
 - Les fonctions d'ouverture et fermeture du tiroir de légende (`toggleLegend`, `closeLegend`).
 
 ## Fil d'Ariane
 [services/](../../services.md) -> [export/](../export.md) -> [modules/](./modules.md) -> **standalone-timeline-logic.md**
-
-

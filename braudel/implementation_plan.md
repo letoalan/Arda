@@ -1,123 +1,144 @@
-# Plan d'Implémentation — Refonte & Évolutions Braudel (modifications.md)
+# Correction de la contamination inter-époques dans l'export Atlas PDF
 
-Ce plan formalise l'exécution technique des 6 chantiers arrêtés dans [`modifications.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/modifications.md) (issus de `tuile.md` et `roadmap-ux.md`).
+## Diagnostic
+
+L'export multi-époques souffre de **3 vecteurs de contamination** qui provoquent la superposition visuelle d'entités de l'époque précédente sur l'époque courante, tant sur la carte que dans la légende :
+
+### Vecteur 1 — Contamination de la légende (cause principale)
+
+Dans [`pdf-atlas-generator.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-atlas-generator.ts#L242-L254), `renderMapPDFPage` reçoit le **tableau complet** `entities` et `relations` — non filtré pour l'époque courante :
+
+```typescript
+await renderMapPDFPage(
+  doc, worldName, snapshotYear, styleConfig, map,
+  entities,    // ← tableau COMPLET, pas filtré
+  relations,   // ← tableau COMPLET, pas filtré
+  pageOptions, i + 1, totalPages, epochRange
+);
+```
+
+Ensuite dans [`pdf-page-renderer.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-page-renderer.ts#L153), le filtre `isEntityVisibleAt(e, year, epochRange)` utilise un test de **chevauchement de plages** :
+
+```typescript
+// Si from <= epochRange.validTo ET to >= epochRange.validFrom → visible
+return from <= epochRange.validTo && to >= epochRange.validFrom;
+```
+
+Ce test d'intersection est **intentionnel** pour la couverture cartographique, mais provoque l'apparition dans la légende d'entités qui **chevauchent** les bornes de l'époque sans être spécifiques à cette époque. Par exemple, un Empire Romain visible de -27 à 476 apparaîtra dans TOUTES les époques de cette période.
+
+### Vecteur 2 — Contamination du canvas MapLibre (race condition)
+
+Dans `exportMultiEpochPDF`, la séquence par itération est :
+
+```
+1. updateEntitiesAndWaitForRender(map, geojson)  // setData + attente sourcedata
+2. updateMapEntities(snapshotYear, epoch)         // callback → mapService.updateEntities()
+3. waitForBackgroundTilesReady(map)
+4. renderMapPDFPage → captureMapCanvas → waitForBackgroundTilesReady (encore) → drawImage
+```
+
+Le problème : **l'étape 2** appelle `mapService.updateEntities()` qui reconstruit un GeoJSON à partir de `liveWorld.entities` et fait un **second `setData`** sur la même source. Cette double-écriture crée une **race condition** : l'étape 1 injecte le bon GeoJSON filtré, puis l'étape 2 le remplace par un GeoJSON potentiellement différent (construit depuis le state global non filtré correctement).
+
+### Vecteur 3 — Accumulation dans le store (via `ensureEpochEntitiesLoaded`)
+
+Dans [`pdf-map-capture.ts:229`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-map-capture.ts#L229), `ensureEpochEntitiesLoaded` fait `worldStore.entities.push(...formatted)` — mutation directe qui **accumule** les entités catalogue de toutes les époques. Au fur et à mesure de l'itération, les entités des époques précédentes restent dans le store. Ce vecteur n'est actif que via `captureSnapshotAt`, pas directement dans `exportMultiEpochPDF`, mais il est une bombe à retardement.
 
 ---
 
-## Vue d'ensemble des 6 Chantiers & Dépendances
+## Changements proposés
 
-```
-┌────────────────────────────────────────┐
-│ Chantier 3 : Bordures de layers (line) │ (Indépendant - Socle carto)
-└──────────────────┬─────────────────────┘
-                   │
-┌──────────────────▼─────────────────────┐     ┌────────────────────────────────────┐
-│ Chantier 1 : Style de tuile dynamique  │     │ Chantier 2 : DEM / Relief distant   │
-└──────────────────┬─────────────────────┘     └─────────────────┬──────────────────┘
-                   │                                             │
-                   └──────────────────────┬──────────────────────┘
-                                          │
-┌─────────────────────────────────────────▼──────────────────────────────────────────┐
-│ Chantier 4 : Slide plein écran superposée (Overlay + Blur + Croix sans unmount)    │
-└─────────────────────────────────────────┬──────────────────────────────────────────┘
-                                          │
-┌─────────────────────────────────────────▼──────────────────────────────────────────┐
-│ Chantier 5 : Édition de slide PowerPoint (Socle V1 : Text, Image, Shape, Snapping) │
-└─────────────────────────────────────────┬──────────────────────────────────────────┘
-                                          │
-┌─────────────────────────────────────────▼──────────────────────────────────────────┐
-│ Chantier 6 : Sauvegarde & Réédition HTML (Validation, schemaVersion, Migration)    │
-└────────────────────────────────────────────────────────────────────────────────────┘
+### 1. Filtrage strict des entités passées à `renderMapPDFPage`
+
+#### [MODIFY] [`pdf-atlas-generator.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-atlas-generator.ts)
+
+Dans les deux boucles d'export (`exportTimelineDrivenPDF` et `exportMultiEpochPDF`), passer les **entités filtrées** pour l'époque courante à `renderMapPDFPage` au lieu du tableau brut :
+
+```diff
++   // Construire la liste filtrée d'entités visibles pour CETTE époque uniquement
++   const epochEntities = (entities || []).filter(e => isEntityVisibleAt(e, snapshotYear, epochRange));
++   const epochRelations = (relations || []).filter(r => isRelationVisibleAt(r, snapshotYear, epochRange));
++
+    await renderMapPDFPage(
+      doc, worldName, snapshotYear, styleConfig, map,
+-     entities,
+-     relations,
++     epochEntities,
++     epochRelations,
+      pageOptions, i + 1, totalPages, epochRange
+    );
 ```
 
----
-
-## User Review Required
+Même traitement pour `exportTimelineDrivenPDF` (sans `epochRange`, le filtre `isEntityVisibleAt(e, year)` fait un test point-in-time strict).
 
 > [!IMPORTANT]
-> - **Format canonique unique** : Le fichier `.html` généré reste le format de sauvegarde canonique universel (portant à la fois le visualiseur autonome et les données sérialisées dans `<script type="application/arda+json" id="arda-doc">`).
-> - **Mode DEM** : Uniquement le mode distant (online via CDN raster-dem `https://tiles.mapterhorn.com/...`) est implémenté, avec dégradation gracieuse immédiate et sans blocage si le réseau est indisponible.
-> - **Extensibilité des éléments de slide** : Le schéma d'éléments V1 est basé sur un type discriminé (`type: 'text' | 'image' | 'shape'`), préfigurant sans rupture l'intégration future de graphiques et vidéos.
+> Ceci garantit que la légende ne contient que les entités strictement visibles à l'instant capturé.
 
 ---
 
-## Proposed Changes
+### 2. Suppression du double `setData` (race condition)
+
+#### [MODIFY] [`pdf-atlas-generator.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-atlas-generator.ts)
+
+Supprimer l'appel `updateMapEntities(snapshotYear, epoch)` après `updateEntitiesAndWaitForRender`. Le GeoJSON injecté à l'étape 1 EST la source de vérité pour cette page. Le callback `updateMapEntities` re-construit un second GeoJSON et écrase le premier, créant la race condition.
+
+```diff
+    if (geojsonToInject) {
+      await updateEntitiesAndWaitForRender(map, 'braudel-entities', geojsonToInject);
+    } else {
+      const geojson = buildEntitiesGeoJSON(entities || [], relations || [], snapshotYear, 'all', [], epochRange);
+      await updateEntitiesAndWaitForRender(map, 'braudel-entities', geojson);
+-     updateMapEntities(snapshotYear, epoch);
+    }
+```
+
+Même chose dans `exportTimelineDrivenPDF` : retirer `updateMapEntities(year)` après `updateEntitiesAndWaitForRender`.
+
+> [!WARNING]
+> `updateMapEntities` est un callback provenant de `DataPanel.tsx` qui appelle `mapService.updateEntities()`. Son rôle est de synchroniser les couches visuelles interactives. Pendant l'export PDF, cette synchronisation est **contre-productive** car elle écrase le GeoJSON filtré avec un GeoJSON reconstruit depuis le state global. Le nettoyage post-export (dans le `finally` de `handleConfirmMultiPdf`) restaurera correctement l'état interactif.
 
 ---
 
-### Phase 1 — Socle Rendu Cartographique & Vecteurs (Chantiers 3, 1, 2)
+### 3. Purge explicite de la source avant chaque itération
 
-#### 1. Bordures vectorielles dédiées (`braudel-polygon-outline`) [Chantier 3]
-- **Objectif** : Dessiner les limites des polygones avec un vrai tracé linéaire (`type: 'line'`) et non un simple contour de points.
-- **Fichiers concernés** :
-  - [MODIFY] [`src/services/export/modules/standalone-map-init.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-map-init.ts) : Ajout de la couche `braudel-polygon-outline` avec `line-color`, `line-width`, `line-opacity` interpolés via `coalesce`.
-  - [MODIFY] [`src/services/export/modules/standalone-timeline-logic.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts) : Application systématique du filtre temporel `updateTemporalFilter` sur `braudel-polygon-outline`.
-  - [MODIFY] [`src/core/map/layerManager.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/core/map/layerManager.ts) (ou équivalent éditeur) : Synchronisation du calque dans l'éditeur principal.
+#### [MODIFY] [`pdf-atlas-generator.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-atlas-generator.ts)
 
-#### 2. Capture dynamique du style de tuile à l'export [Chantier 1]
-- **Objectif** : Refléter fidèlement le style actif dans l'éditeur (`styleUrl`, `styleId`) au moment de l'export sans forcer Voyager.
-- **Fichiers concernés** :
-  - [MODIFY] [`src/services/export/modules/bento-types.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts) : Vérification/renforcement du typage `map.styleUrl` et `map.styleId`.
-  - [MODIFY] [`src/services/export/standalone-template.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts) : Transmission directe de la configuration active `styleConfig` ou lecture depuis l'instance de carte.
-  - [MODIFY] [`src/app/views/StoryEditorPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/StoryEditorPanel.tsx) & [`src/app/views/DataPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/DataPanel.tsx) : Récupération dynamique du style courant sélectionné.
+Ajouter un flush explicite de la source GeoJSON au début de chaque itération pour garantir qu'aucun résidu de l'époque précédente ne persiste :
 
-#### 3. Relief (DEM) distant & Hillshade avec garde-fou réseau [Chantier 2]
-- **Objectif** : Intégrer la gestion du terrain `raster-dem` distant et la couche `hillshade` avec fallback résilient si le CDN échoue.
-- **Fichiers concernés** :
-  - [MODIFY] [`src/services/export/modules/bento-types.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts) : Ajout du champ optionnel `map.terrain` (`mode: 'remote' | 'none'`, `terrainTilesUrl`, `exaggeration`, `hillshadeEnabled`).
-  - [MODIFY] [`src/services/export/modules/standalone-map-init.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-map-init.ts) : Injection de `addSource('terrain-dem')`, `setTerrain(...)`, couche `hillshade` et listener d'erreur `map.on('error', ...)` avec `map.setTerrain(null)`.
+```diff
+  for (let i = 0; i < totalPages; i++) {
++   // Purger la source pour éliminer tout résidu de l'époque précédente
++   await updateEntitiesAndWaitForRender(map, 'braudel-entities', { type: 'FeatureCollection', features: [] });
++
+    const epoch = epochs[i];
+```
+
+> [!NOTE]
+> Ce flush coûte ~700ms par page, mais c'est un prix acceptable pour garantir l'isolation des données. Il élimine définitivement toute possibilité que des features "fantômes" du cycle précédent persistent dans le pipeline de rendu WebGL.
 
 ---
 
-### Phase 2 — Expérience Slide Plein Écran & Moteur de Rendu (Chantier 4)
+### 4. Import de `isRelationVisibleAt` dans `pdf-atlas-generator.ts`
 
-#### 4. Slide Overlay superposée sans démontage de carte
-- **Objectif** : Afficher la diapositive en superposition au-dessus de la carte avec flou d'arrière-plan et bouton croix de fermeture.
-- **Fichiers concernés** :
-  - [MODIFY] [`src/services/export/standalone-template.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts) : Remplacement du bouton retour texte par le bouton croix `#btn-slide-close` en haut à droite.
-  - [MODIFY] [`src/services/export/modules/standalone-slide-styles.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-styles.ts) : Mise à jour CSS (`position: absolute`, `backdrop-filter: blur(6px)`, `background: rgba(15, 23, 42, 0.55)`).
-  - [MODIFY] [`src/services/export/modules/standalone-slide-logic.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-logic.ts) : Suppression du masquage `#map.hidden` ; conservation des animations de caméra en arrière-plan.
+#### [MODIFY] [`pdf-atlas-generator.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-atlas-generator.ts)
+
+Ajouter `isRelationVisibleAt` à l'import depuis `pdf-types.ts` (il est déjà exporté, mais pas importé dans l'atlas generator).
 
 ---
 
-### Phase 3 — Éditeur de Slide V1 type PowerPoint (Chantier 5)
+## Fichiers modifiés
 
-#### 5. Outils d'édition de slide & Canevas de référence (16:9)
-- **Objectif** : Fournir une barre d'outils d'édition légère pour positionner textes, images et formes géométriques simples avec snapping magnétique.
-- **Fichiers concernés** :
-  - [NEW] [`src/app/views/SlideEditorModal.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/SlideEditorModal.tsx) (ou composant dédié dans l'éditeur) : Canevas 1280x720 (16:9), manipulation drag/resize et snapping.
-  - [MODIFY] [`src/services/export/modules/bento-types.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts) : Extension de `ArdaSlideElement` (coordonnées `x, y, w, h`, typage `fontSize, fontWeight, color, align, background`).
-  - [MODIFY] [`src/services/export/modules/standalone-slide-logic.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-logic.ts) : Moteur de rendu unifié des éléments positionnés en coordonnées relatives/absolues pour l'export.
+| Fichier | Action |
+|---------|--------|
+| [`pdf-atlas-generator.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-atlas-generator.ts) | Flush + filtrage pré-render + suppression du double setData |
+| [`pdf-atlas-generator.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-atlas-generator.md) | Mise à jour documentation |
+| [`pdf-map-capture.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/pdf-map-capture.md) | Mise à jour documentation |
 
----
+## Plan de vérification
 
-### Phase 4 — Sauvegarde Canonique, Réédition & Migrations (Chantier 6)
+### Vérification automatisée
+- `cmd /c "npx tsc --noEmit"` — compilation TypeScript sans erreur
 
-#### 6. Importation de fichiers HTML et compatibilité ascendante
-- **Objectif** : Permettre la réouverture d'un fichier `.html` exporté dans l'éditeur, valider son intégrité et migrer les schémas plus anciens.
-- **Fichiers concernés** :
-  - [NEW] [`src/services/export/modules/arda-doc-parser.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/arda-doc-parser.ts) : Fonctions `parseArdaDocFromHtml(htmlContent)`, `validateArdaDocSchema(doc)`, `migrateArdaDoc(doc)`.
-  - [MODIFY] [`src/services/export/modules/bento-types.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts) : Ajout de la constante `CURRENT_ARDA_SCHEMA_VERSION = "1.1.0"` et du champ `schemaVersion`.
-  - [MODIFY] [`src/app/views/StoryEditorPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/StoryEditorPanel.tsx) : Ajout du bouton "Ouvrir un fichier ARDA (.html)" avec chargement de l'état du store.
-
----
-
-### Phase 5 — Documentation & Synchronisation (Wiki-as-Code)
-- **Règles projet strictes** :
-  - Mise à jour ou création de tous les fichiers `.md` techniques correspondants aux modules modifiés/créés.
-  - Synchronisation du `task.md` à la racine du projet.
-
----
-
-## Verification Plan
-
-### Automated Tests
-- `npm test` :
-  - `src/tests/bento-html-export.test.ts` : Vérification de la présence de `braudel-polygon-outline`, de la config terrain, et du style dynamique.
-  - `src/tests/arda-doc-migration.test.ts` : Test de validation, migration ascendante et aller-retour export/import HTML.
-  - `src/tests/slide-editor-model.test.ts` : Test du positionnement et du schéma `elements[]`.
-
-### Manual Verification
-1. **Export avec style personnalisé & relief** : Exporter un projet avec relief actif, vérifier l'affichage 3D dans le navigateur et le bon fonctionnement hors-ligne dégradé sans crash.
-2. **Affichage de slide overlay** : Lancer un récit, ouvrir une slide, vérifier que la carte reste visible floutée derrière et que la croix ferme la diapositive.
-3. **Édition et réimport** : Éditer une slide, exporter le `.html`, puis le réimporter dans Braudel via le bouton d'import pour vérifier la fidélité de l'état restauré.
+### Vérification manuelle
+- Export Atlas PDF multi-époques : vérifier visuellement que chaque page montre uniquement les entités de l'époque correspondante
+- Vérifier que la légende de chaque page ne contient pas d'entités de l'époque précédente
+- Vérifier qu'après l'export, la carte interactive retrouve son état normal

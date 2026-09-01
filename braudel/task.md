@@ -22,3 +22,16 @@
 - [x] **Phase 5 : Tests Automatisés & Validation**
   - [x] Exécution et complétion de la suite de tests unitaires/intégration (28 fichiers de tests, 151 tests passants)
   - [x] Synchronisation finale des artéfacts et documentation
+- [x] **Hotfix : Correction contamination inter-époques PDF**
+  - [x] Détection et récupération WebGL context loss (`pdf-map-capture.ts`)
+  - [x] Purge explicite source GeoJSON entre chaque itération (`pdf-atlas-generator.ts`)
+  - [x] Suppression double setData / race condition (`updateMapEntities` retiré de la boucle d'export)
+  - [x] Filtrage strict des entités/relations passées à la légende (`isEntityVisibleAt` / `isRelationVisibleAt`)
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Évolution : Échelle différenciée Minicarte Bento (Macro vs Continentale)**
+  - [x] Implémentation du zoom 0.9 (Macro) vs 3.2 (Continentale) avec centrage dynamique (`standalone-timeline-logic.ts`)
+  - [x] Styles CSS d'expansion à 220px, badge émeraude et halo dynamique (`standalone-bento-styles.ts`)
+  - [x] Suivi continu du marqueur rouge (`context-minimap-indicator`) sur les mouvements et animations
+  - [x] Intégration et validation dans les tests unitaires (`bento-html-export.test.ts`)
+  - [x] Documentation technique Wiki-as-Code (`standalone-timeline-logic.md`, `standalone-bento-styles.md`)
+

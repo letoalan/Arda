@@ -1,11 +1,7 @@
 import JSZip from 'jszip';
 import { StoryProject } from '../../core/schema/story';
 import { playSceneTransition } from '../cartography/camera-orchestrator';
-
-function captureCanvasDataUrl(map: any): string {
-  map.triggerRepaint();
-  return map.getCanvas().toDataURL('image/jpeg', 0.95);
-}
+import { captureMapCanvas } from './modules/pdf-map-capture';
 
 /**
  * Exporte un pack Storyboard ZIP complet :
@@ -20,7 +16,8 @@ export async function exportStoryboardZIP(
   map: any,
   setCurrentTime: (year: number) => void,
   progressCallback?: (pct: number) => void,
-  entities?: any[]
+  entities?: any[],
+  defaultBg: string = '#ffffff'
 ): Promise<void> {
   const zip = new JSZip();
   const folderVisuals = zip.folder('visuals');
@@ -53,8 +50,8 @@ export async function exportStoryboardZIP(
       true
     );
 
-    // Capture JPEG
-    const imgData = captureCanvasDataUrl(map);
+    // Capture JPEG composite sur fond plein (élimine les artefacts de fond noir liés à l'alpha WebGL)
+    const { dataUrl: imgData } = await captureMapCanvas(map, defaultBg);
     const base64Data = imgData.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
     const imgFilename = `scene_${sceneNum}_z${Math.round(scene.mapState.zoom)}.jpg`;
     

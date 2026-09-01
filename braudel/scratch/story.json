@@ -1,0 +1,29 @@
+{
+  "id": "story-1788289140453",
+  "title": "Récit Cartographique : Arda3",
+  "description": "Histoire et chronologie de Arda3",
+  "defaultFps": 30,
+  "scenes": [
+    {
+      "id": "scene-1",
+      "title": "Introduction à Arda3",
+      "body": "Bienvenue dans l'exploration narrative de Arda3. Découvrez les événements majeurs et l'évolution des territoires.",
+      "mapState": {
+        "center": [
+          2,
+          45
+        ],
+        "zoom": 3,
+        "timelineYear": 1800,
+        "visibleLayerIds": []
+      },
+      "layout": "split",
+      "transition": {
+        "profile": "standard",
+        "durationMode": "auto",
+        "pauseAfterMs": 800,
+        "reduceMotionPolicy": "respect"
+      }
+    }
+  ]
+}

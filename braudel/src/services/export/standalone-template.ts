@@ -171,8 +171,8 @@ export function generateStandaloneHtml(
       <!-- Canevas Cartographique MapLibre GL -->
       <div id="map"></div>
 
-      <!-- Mini-Carte de Contexte Fixe Macro-Échelle (Phase 5 - 150x150px) -->
-      <div class="context-minimap-box" id="context-minimap-box" title="Mini-carte de contexte (cliquer pour vue d'ensemble macro)">
+      <!-- Mini-Carte de Contexte Fixe Macro / Continentale (Phase 5) -->
+      <div class="context-minimap-box" id="context-minimap-box" title="Mini-carte de contexte (cliquer pour alterner vue générale macro / continentale)">
         <div class="context-minimap-header">
           <span>🌍 Vue Générale</span>
           <span class="context-minimap-badge" id="context-minimap-scale">Macro</span>

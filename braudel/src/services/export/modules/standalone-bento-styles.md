@@ -11,7 +11,11 @@ Le module `standalone-bento-styles.ts` génère l'ensemble des règles CSS et de
   - **Barre d'Outils Supérieure Flottante** : Groupe `.top-toolbar-group` avec bascule Thème Sombre / Clair (`🌙` / `☀️`), mode Sidecar (EX), Légende, Raccord et Projection plein écran.
   - **Volet Narratif Bento** : Carte flottante `.bento-card` avec barre de progression de récit, badges d'ères colorés, titre percutant et actions interactives.
   - **Frise Chronologique Spatio-Temporelle Inférieure** : Bandeau étendu `.timeline-bar-container` intégrant le bouton de lecture automatique `▶ / ⏸` (avec raccourci clavier *Espace*), sélecteur de vitesse (`1 an/s`, `5 ans/s`, `10 ans/s`), sauts d'étapes (◀ / ▶), badge d'année active et légende des ères.
-  - **Mini-Carte Macro Découplée de la Timeline** : Positionnée à `bottom: 96px; right: 20px;` pour éviter tout chevauchement avec la frise et libérer le bouton `🏷️ Dates`.
+  - **Mini-Carte Macro / Continentale Découplée de la Timeline** :
+    - Positionnée à `bottom: 96px; right: 20px;` pour libérer les contrôles de frise.
+    - Format standard 145×145px en vue Macro, avec expansion fluide à 220×220px (`.context-minimap-box.is-continental-view`) en vue Continentale.
+    - Badge contextuel dynamique (`Macro` en bleu accentué `--accent-primary` / `Continentale` en vert émeraude `#10B981`).
+    - Indicateur de position avec halo et cercles concentriques dynamiques (`.context-minimap-indicator`).
   - **Contraste Rehaussé des Lignes de Rhumb** : Lignes maîtresses à `1.5px` (`opacity: 0.80`) et secondaires à `0.9px` (`opacity: 0.55`) avec pastilles dorées de rayon 7px.
   - **Support du Thème Clair** : Classe `.light-theme` assurant un rendu lumineux tout aussi soigné sur commande.
 - Disposition du canevas cartographique plein écran `#map`.
@@ -19,10 +23,8 @@ Le module `standalone-bento-styles.ts` génère l'ensemble des règles CSS et de
   - Partitionnement fixe sans chevauchement : Panneau narratif à gauche (38%) + Carte WebGL à droite (62%).
   - Bascule d'orientation (`body.mode-ex-vertical`) : Carte en haut (54%) et panneau narratif en bas (46%).
   - Règle de sécurité anti-débordement dynamique (`.sidecar-narrative-panel.narrative-expanded`) pour textes longs (> 500 caractères).
-  - Cartes d'argumentation de type dissertation avec badges de parties (`.narrative-part-badge`), ruban chronologique vertical (`.sidecar-vertical-progress-track`), actions de texte interactives (`.map-action-trigger`) et mini-carte de repère macro (`.context-minimap-box`).
+  - Cartes d'argumentation de type dissertation avec badges de parties (`.narrative-part-badge`), ruban chronologique vertical (`.sidecar-vertical-progress-track`), actions de texte interactives (`.map-action-trigger`) et mini-carte de repère multi-échelle (`.context-minimap-box`).
 - Miniature de diapositive intégrée en direct dans le volet Bento (`.bento-slide-preview-card`, `.preview-canvas-scaled`) avec agrandissement direct au clic.
 
 ## Fil d'Ariane
 [services/](../../services.md) -> [export/](../export.md) -> [modules/](./modules.md) -> **standalone-bento-styles.md**
-
-

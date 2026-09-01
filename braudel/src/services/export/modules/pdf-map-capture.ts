@@ -77,10 +77,27 @@ export async function updateEntitiesAndWaitForRender(
 export async function waitForBackgroundTilesReady(map: any, maxAttempts = 30): Promise<void> {
   if (!map) return;
 
+  // ── Détection et récupération du contexte WebGL perdu ──
+  const webglContextLost = await detectAndRecoverWebGLContext(map);
+  if (webglContextLost) {
+    // Le contexte a été restauré (ou reste irrécupérable).
+    // Dans les deux cas, on continue : mieux vaut un export partiel qu'un export avorté.
+    console.warn('[PDF Export] Contexte WebGL récupéré après perte. Reprise de l\'export.');
+  }
+
   const style = typeof map.getStyle === 'function' ? map.getStyle() : null;
   const sourceIds = Object.keys(style?.sources ?? {}).filter((id) => id !== 'braudel-entities');
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Vérifier si le contexte WebGL est à nouveau perdu pendant le polling
+    if (isWebGLContextLost(map)) {
+      console.warn(
+        `[PDF Export] Contexte WebGL perdu pendant l'attente des tuiles (tentative ${attempt + 1}/${maxAttempts}). ` +
+        'Capture avec l\'état courant du canvas.'
+      );
+      return; // Dégradation gracieuse : on capture ce qui est disponible
+    }
+
     const backgroundSourcesLoaded = sourceIds.length === 0 || sourceIds.every((id) => 
       typeof map.isSourceLoaded === 'function' ? map.isSourceLoaded(id) : true
     );
@@ -113,6 +130,72 @@ export async function waitForBackgroundTilesReady(map: any, maxAttempts = 30): P
     'Timeout: tuiles de fond de carte non chargées avant capture. ' +
     'Export annulé pour éviter une page avec fond de carte incomplet.'
   );
+}
+
+/**
+ * Vérifie si le contexte WebGL du canvas MapLibre est actuellement perdu.
+ * Utilise la référence interne _canvas ou getCanvasContainer pour ne pas déclencher getCanvas().
+ */
+function isWebGLContextLost(map: any): boolean {
+  try {
+    const canvas = (map as any)?._canvas || (typeof (map as any)?.getCanvasContainer === 'function' ? (map as any).getCanvasContainer()?.querySelector('canvas') : null);
+    if (!canvas || typeof canvas.getContext !== 'function') return false;
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    return gl && typeof gl.isContextLost === 'function' ? gl.isContextLost() : false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Détecte la perte du contexte WebGL et tente une récupération via l'extension WEBGL_lose_context.
+ * Attend jusqu'à 3 secondes que le contexte soit restauré.
+ * Retourne true si un contexte perdu a été détecté (qu'il ait été récupéré ou non).
+ */
+async function detectAndRecoverWebGLContext(map: any): Promise<boolean> {
+  if (!isWebGLContextLost(map)) return false;
+
+  console.warn('[PDF Export] Contexte WebGL perdu détecté. Tentative de restauration…');
+
+  const canvas = (map as any)?._canvas || (typeof (map as any)?.getCanvasContainer === 'function' ? (map as any).getCanvasContainer()?.querySelector('canvas') : null);
+  if (!canvas || typeof canvas.getContext !== 'function') return true;
+
+  // Tenter la restauration via l'extension WEBGL_lose_context
+  try {
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (gl) {
+      const loseContextExt = gl.getExtension('WEBGL_lose_context');
+      if (loseContextExt) {
+        loseContextExt.restoreContext();
+      }
+    }
+  } catch (e) {
+    console.warn('[PDF Export] Impossible d\'appeler restoreContext():', e);
+  }
+
+  // Attendre la restauration (max 3 secondes, polling à 100ms)
+  const maxRecoveryAttempts = 30;
+  for (let i = 0; i < maxRecoveryAttempts; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    if (!isWebGLContextLost(map)) {
+      console.info('[PDF Export] Contexte WebGL restauré avec succès après ' + ((i + 1) * 100) + 'ms.');
+      // Attendre un cycle de rendu supplémentaire pour stabiliser
+      await new Promise<void>((resolve) => {
+        if (typeof map.triggerRepaint === 'function') {
+          map.triggerRepaint();
+        }
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        } else {
+          setTimeout(resolve, 100);
+        }
+      });
+      return true;
+    }
+  }
+
+  console.warn('[PDF Export] Contexte WebGL irrécupérable après 3s. L\'export continuera avec un rendu dégradé.');
+  return true;
 }
 
 export const waitForAllSourcesReady = waitForBackgroundTilesReady;

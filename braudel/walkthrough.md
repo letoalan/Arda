@@ -1,34 +1,37 @@
-# Walkthrough — Correctifs Relief 3D, Timeline Dynamique & Repères Géographiques
+# Walkthrough — Échelle Différenciée de la Minicarte Bento (Macro vs Continentale)
 
-Tous les points soulevés lors de l'analyse du document exporté ont été traités, intégrés et validés par des tests unitaires et d'intégration.
+## Problématique Résolue
+Dans le viewer autonome Bento (`standalone-template.ts`), la mini-carte de contexte (`context-minimap-box`) permettait de basculer le libellé du badge (`Macro` $\leftrightarrow$ `Continentale`), mais **l'échelle cartographique restait statique** (zoom figé à 1.2 sans variation de cadrage ni adaptation du zoom et de la boîte de visualisation).
 
----
+## Modifications Apportées
 
-## 1. Détail des Correctifs Appliqués
+### 1. Logique Dynamique d'Échelle & Centrage ([`standalone-timeline-logic.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts))
+- **Vue Macro Générale** :
+  - Niveau de zoom planétaire global : `zoom: 0.9` (ou centré sur `doc.map?.center || [12.5, 42.0]`).
+  - L'indicateur rouge (`#context-minimap-indicator`) se projette selon les coordonnées sphériques réelles du centre de la caméra principale via `contextMinimapInstance.project(center)`.
+  - Format compact 145×145px, badge bleu accentué `Macro`.
+- **Vue Continentale Régionale** :
+  - Niveau de zoom continental rapproché : `zoom: 3.2`.
+  - La minicarte se focalise et suit le déplacement de la caméra principale (`contextMinimapInstance.setCenter(map.getCenter())`), permettant d'observer en permanence le continent et le bassin géographique autour du point d'observation.
+  - L'indicateur rouge est maintenu au centre géométrique du canevas de la minicarte.
+  - Animation cinématique fluide (`easeTo`, durée 350ms) lors de l'alternance d'échelle.
+  - Écoute des événements `move` de la minicarte pour que le curseur reste calé pendant les vols de transition.
 
-### ⛰️ Relief (DEM) & Caméra 3D (Point 2)
-- **Problème** : Le relief ne se manifestait pas car le `pitch` de la caméra initiale était à 0° (vue orthogonale 2D plate) et `demEnabled` n'était pas automatiquement configuré.
-- **Solution** :
-  - Dans [`bento-types.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts), lorsque `demEnabled` est actif, le `pitch` par défaut est automatiquement incliné à **45°** afin que le relief et les ombrages `hillshade` soient immédiatement visibles dès l'ouverture du document.
-  - La source `raster-dem` et la couche `terrain-hillshade` sont configurées avec `maxzoom: 14` et intégrées sous les calques vectoriels d'entités.
+### 2. Styles CSS & Rendu Visuel ([`standalone-bento-styles.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-bento-styles.ts))
+- Ajout de la classe `.context-minimap-box.is-continental-view` (et alias `.is-macro-expanded`) :
+  - Agrandissement fluide de 145px à **220px × 220px** avec transition cubique (`cubic-bezier(0.16, 1, 0.3, 1)`).
+  - Badge vert émeraude `#10B981` pour identifier sans ambiguïté la vue continentale.
+  - Halo d'accentuation dynamique sur l'indicateur rouge (`box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3)`).
 
-### ⏱️ Timeline, Curseur & Visibilité des Couches (Points 3 & 4)
-- **Problème** : Le déplacement du curseur de la timeline ne semblait pas avoir d'effet car les entités GeoJSON brutes n'avaient pas encore leurs propriétés `validFrom` et `validTo` aplaties dans `properties` lors de l'appel au script autonome.
-- **Solution** :
-  - Dans [`standalone-template.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts), `normalizedEntities` (qui garantit `properties.validFrom` et `properties.validTo`) est désormais directement injecté dans le script embarqué (`getStandaloneScript`).
-  - Dans [`standalone-timeline-logic.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts), `updateTemporalFilter(year)` applique les filtres temporels sur tous les calques (`braudel-polygons`, `braudel-polygon-outline`, `braudel-lines`, `braudel-points`) avec préservation de leurs filtres géométriques `MultiPolygon`/`Polygon`.
-  - Lors du glissement du curseur, les entités apparaissent et disparaissent en direct selon leur période d'existence historique, et la légende se recalcule instantanément.
+### 3. Modèle HTML ([`standalone-template.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts))
+- Info-bulle clarifiée : `title="Mini-carte de contexte (cliquer pour alterner vue générale macro / continentale)"`.
 
-### 🌐 Transmission des Repères Géographiques & Rhumbs (Point 5)
-- **Problème** : L'état coché/décoché des repères géographiques (Équateur, Tropiques, Cercles Polaires) et des Lignes de Rhumb n'était pas transmis lors de l'export.
-- **Solution** :
-  - Extension de `ArdaMapConfig` et `convertStoryProjectToArdaDoc` dans [`bento-types.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts) avec `geoReferenceLinesVisible`, `portulanRhumbVisible`, `basemapLabelsVisible`, `basemapBordersVisible`.
-  - Dans [`StoryEditorPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/StoryEditorPanel.tsx) et [`DataPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/DataPanel.tsx), l'état exact du store est désormais transmis à `generateStandaloneHtml`.
-  - Dans [`standalone-map-init.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-map-init.ts), les couches `geo-reference-lines`, `geo-reference-labels` et `standalone-rhumb-layer` sont instanciées et leur visibilité (`visible` / `none`) reflète fidèlement les options utilisateur.
+### 4. Tests Automatisés & Documentation Wiki-as-Code
+- Ajout des assertions sur les échelles et classes CSS dans [`bento-html-export.test.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/tests/bento-html-export.test.ts).
+- Mise à jour de la documentation technique :
+  - [`standalone-timeline-logic.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.md)
+  - [`standalone-bento-styles.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-bento-styles.md)
 
----
-
-## 2. Validation & Tests
-
-- `npx tsc --noEmit` : **0 erreur**.
-- `npm test` : **28 suites de tests passées, 152 tests validés (100% au vert)**.
+## Validation des Tests
+- **Compilation TypeScript** : `npx tsc --noEmit` $\rightarrow$ 0 erreur.
+- **Suite de tests Vitest** : 28 fichiers de tests, **163 tests passants sur 163 (100% de réussite)**.

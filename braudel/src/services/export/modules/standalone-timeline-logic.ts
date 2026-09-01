@@ -877,35 +877,105 @@ export function getStandaloneTimelineScript(): string {
       if (!box || !window.maplibregl) return;
 
       try {
+        let isContinental = false;
+        const defaultMacroZoom = 0.9;
+        const continentalZoom = 3.2;
+        const macroCenter = doc.map?.center || [12.5, 42.0];
+
         contextMinimapInstance = new maplibregl.Map({
           container: 'context-minimap-canvas',
           style: doc.map?.styleUrl || 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-          center: doc.map?.center || [12.5, 42.0],
-          zoom: 1.2,
+          center: macroCenter,
+          zoom: defaultMacroZoom,
           interactive: false,
           attributionControl: false
         });
 
-        box.onclick = () => {
-          box.classList.toggle('is-macro-expanded');
-          const isExp = box.classList.contains('is-macro-expanded');
-          const badge = document.getElementById('context-minimap-scale');
-          if (badge) badge.innerText = isExp ? 'Continentale' : 'Macro';
-          if (contextMinimapInstance) contextMinimapInstance.resize();
-        };
-
-        // Synchronisation du point indicateur sur la minicarte
-        map.on('move', () => {
+        function updateIndicator() {
+          if (!contextMinimapInstance) return;
           const center = map.getCenter();
-          if (contextMinimapInstance) {
+          const indicator = document.getElementById('context-minimap-indicator');
+          if (!indicator) return;
+
+          if (isContinental) {
+            // En vue continentale, la minicarte est centrée sur le point de vue actif :
+            // le marqueur est donc situé au centre du canevas
+            const w = box.clientWidth || 220;
+            const h = box.clientHeight || 220;
+            indicator.style.left = (w / 2) + 'px';
+            indicator.style.top = (h / 2) + 'px';
+          } else {
+            // En vue macro générale, l'indicateur se projette sur le globe selon sa position réelle
             const pt = contextMinimapInstance.project(center);
-            const indicator = document.getElementById('context-minimap-indicator');
-            if (indicator) {
-              indicator.style.left = Math.max(8, Math.min(142, pt.x)) + 'px';
-              indicator.style.top = Math.max(8, Math.min(142, pt.y)) + 'px';
+            const w = box.clientWidth || 145;
+            const h = box.clientHeight || 145;
+            indicator.style.left = Math.max(8, Math.min(w - 8, pt.x)) + 'px';
+            indicator.style.top = Math.max(8, Math.min(h - 8, pt.y)) + 'px';
+          }
+        }
+
+        function applyScale(animate) {
+          if (!contextMinimapInstance) return;
+          const badge = document.getElementById('context-minimap-scale');
+          if (badge) {
+            badge.innerText = isContinental ? 'Continentale' : 'Macro';
+          }
+
+          if (isContinental) {
+            const currentCenter = map.getCenter();
+            if (animate) {
+              contextMinimapInstance.easeTo({
+                center: currentCenter,
+                zoom: continentalZoom,
+                duration: 350
+              });
+            } else {
+              contextMinimapInstance.setCenter(currentCenter);
+              contextMinimapInstance.setZoom(continentalZoom);
+            }
+          } else {
+            if (animate) {
+              contextMinimapInstance.easeTo({
+                center: macroCenter,
+                zoom: defaultMacroZoom,
+                duration: 350
+              });
+            } else {
+              contextMinimapInstance.setCenter(macroCenter);
+              contextMinimapInstance.setZoom(defaultMacroZoom);
             }
           }
+          updateIndicator();
+        }
+
+        box.onclick = () => {
+          isContinental = !isContinental;
+          box.classList.toggle('is-continental-view', isContinental);
+          box.classList.toggle('is-macro-expanded', isContinental);
+          
+          applyScale(true);
+
+          setTimeout(() => {
+            if (contextMinimapInstance) {
+              contextMinimapInstance.resize();
+              updateIndicator();
+            }
+          }, 220);
+        };
+
+        // Synchronisation du point indicateur et du centrage continental sur déplacement de la carte principale
+        map.on('move', () => {
+          if (!contextMinimapInstance) return;
+          if (isContinental) {
+            contextMinimapInstance.setCenter(map.getCenter());
+          }
+          updateIndicator();
         });
+
+        // Suivi continu du marqueur pendant les animations de la minicarte
+        contextMinimapInstance.on('move', updateIndicator);
+        contextMinimapInstance.on('load', updateIndicator);
+
       } catch (err) {
         console.warn('Initialisation context minimap:', err);
       }

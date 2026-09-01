@@ -1005,6 +1005,17 @@ export function getStandaloneBentoStyles(
       border-color: var(--accent-primary);
       box-shadow: 0 12px 32px rgba(59, 130, 246, 0.35);
     }
+    .context-minimap-box.is-continental-view,
+    .context-minimap-box.is-macro-expanded {
+      width: 220px;
+      height: 220px;
+      border-color: var(--accent-primary);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+    }
+    .context-minimap-box.is-continental-view:hover,
+    .context-minimap-box.is-macro-expanded:hover {
+      transform: scale(1.02);
+    }
     .context-minimap-header {
       position: absolute;
       top: 0;
@@ -1024,6 +1035,13 @@ export function getStandaloneBentoStyles(
       color: var(--accent-primary);
       font-size: 0.62rem;
       text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      transition: color 0.2s ease;
+    }
+    .context-minimap-box.is-continental-view .context-minimap-badge,
+    .context-minimap-box.is-macro-expanded .context-minimap-badge {
+      color: #10B981;
     }
     .context-minimap-indicator {
       position: absolute;
@@ -1038,6 +1056,11 @@ export function getStandaloneBentoStyles(
       box-shadow: 0 0 10px #EF4444;
       pointer-events: none;
       z-index: 3;
+      transition: left 0.1s ease-out, top 0.1s ease-out;
+    }
+    .context-minimap-box.is-continental-view .context-minimap-indicator,
+    .context-minimap-box.is-macro-expanded .context-minimap-indicator {
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3), 0 0 12px #EF4444;
     }
 
     body.mode-ex-vertical .app-layout-root {
