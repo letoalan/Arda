@@ -507,6 +507,66 @@ describe('Multimedia Export & Spatial Analysis Tests', () => {
       expect(uniqueSnapshots.size).toBe(3);
     });
   });
+
+  describe('Solution 5: Export Collection Multi-Époques ZIP avec conservation du bearing Al-Idrisi', () => {
+    it('doit exporter une image JPEG par époque dans une archive ZIP et préserver le bearing', async () => {
+      const { exportMultiEpochZIP } = await import('../services/export/export-multimedia');
+      
+      const setTimeMock = vi.fn();
+      const capturedYears: number[] = [];
+      
+      const fakeSource = { setData: vi.fn() };
+      const fakeMap = {
+        getBearing: vi.fn(() => 180), // Al-Idrisi Sud en haut
+        getPitch: vi.fn(() => 0),
+        getSource: vi.fn(() => fakeSource),
+        getStyle: vi.fn(() => ({ sources: { 'braudel-entities': {} } })),
+        isSourceLoaded: vi.fn(() => true),
+        areTilesLoaded: vi.fn(() => true),
+        isMoving: vi.fn(() => false),
+        isZooming: vi.fn(() => false),
+        isRotating: vi.fn(() => false),
+        triggerRepaint: vi.fn(),
+        on: vi.fn((event: string, cb: any) => {
+          if (event === 'sourcedata') {
+            setTimeout(() => cb({ sourceId: 'braudel-entities', isSourceLoaded: true }), 5);
+          }
+        }),
+        off: vi.fn(),
+        once: vi.fn((_event: string, cb: any) => cb()),
+        getCanvas: vi.fn(() => ({
+          width: 800,
+          height: 600,
+          toDataURL: vi.fn().mockReturnValue('data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='),
+        })),
+      };
+
+      const selectedEpochs = [
+        { year: -500, label: 'Antiquité', targetYear: -450 },
+        { year: 1154, label: 'Al-Idrisi', targetYear: 1154 },
+        { year: 1789, label: 'Révolution', targetYear: 1789 },
+      ];
+
+      await exportMultiEpochZIP(
+        'Monde Idrisi',
+        selectedEpochs,
+        fakeMap,
+        (y) => {
+          capturedYears.push(y);
+          setTimeMock(y);
+        },
+        [],
+        [],
+        STYLE_CONFIGS[0]
+      );
+
+      // Vérifie que chaque époque a bien été ciblée
+      expect(setTimeMock).toHaveBeenCalledTimes(3);
+      expect(capturedYears).toEqual([-450, 1154, 1789]);
+      // Vérifie que le bearing 180° a été lu
+      expect(fakeMap.getBearing).toHaveBeenCalled();
+    });
+  });
 });
 
 

@@ -14,7 +14,7 @@ Ce secteur regroupe les générateurs d'exportations aux différents formats pri
 | **`modules/`** | Sous-modules spécialisés (< 200 lignes) pour l'export cartographique et multimédia | [modules/modules.md](./modules/modules.md) |
 | **`pdf-timeline-utils.ts`** | Utilitaires d'extraction polymorphe des époques et du point médian | [pdf-timeline-utils.md](./pdf-timeline-utils.md) |
 | **`storyboard-export.ts`** | Génération de packs Zip storyboard (visuels HD, story.json, script.md) | [storyboard-export.md](./storyboard-export.md) |
-| **`video-export.ts`** | Exportation de vidéos commentées | - |
+| **`video-export.ts`** | Exportation vidéo cinématique WebM (VP9 30fps) avec transitions caméras | [video.md](./video.md) |
 
 ## Fil d'Ariane
 [services/](../services.md) -> **export/** -> [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md)

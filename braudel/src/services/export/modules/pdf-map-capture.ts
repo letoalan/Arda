@@ -74,7 +74,7 @@ export async function updateEntitiesAndWaitForRender(
  * Vérifie l'état de chargement des tuiles de fond (raster/vectoriel) et la stabilisation de la caméra,
  * séparé du cycle de vie de la source braudel-entities. (Solution 3-1 & Solution 4)
  */
-export async function waitForBackgroundTilesReady(map: any, maxAttempts = 30): Promise<void> {
+export async function waitForBackgroundTilesReady(map: any, maxAttempts = 50): Promise<void> {
   if (!map) return;
 
   // ── Détection et récupération du contexte WebGL perdu ──
@@ -87,6 +87,8 @@ export async function waitForBackgroundTilesReady(map: any, maxAttempts = 30): P
 
   const style = typeof map.getStyle === 'function' ? map.getStyle() : null;
   const sourceIds = Object.keys(style?.sources ?? {}).filter((id) => id !== 'braudel-entities');
+
+  let cameraSettled = false;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // Vérifier si le contexte WebGL est à nouveau perdu pendant le polling
@@ -107,7 +109,7 @@ export async function waitForBackgroundTilesReady(map: any, maxAttempts = 30): P
     const isMoving = typeof map.isMoving === 'function' ? map.isMoving() : false;
     const isZooming = typeof map.isZooming === 'function' ? map.isZooming() : false;
     const isRotating = typeof map.isRotating === 'function' ? map.isRotating() : false;
-    const cameraSettled = !isMoving && !isZooming && !isRotating;
+    cameraSettled = !isMoving && !isZooming && !isRotating;
 
     if (typeof map.triggerRepaint === 'function') {
       map.triggerRepaint();
@@ -126,9 +128,17 @@ export async function waitForBackgroundTilesReady(map: any, maxAttempts = 30): P
     await new Promise((r) => setTimeout(r, 50));
   }
 
-  throw new PdfExportError(
-    'Timeout: tuiles de fond de carte non chargées avant capture. ' +
-    'Export annulé pour éviter une page avec fond de carte incomplet.'
+  // Si la caméra est toujours en mouvement après le timeout, rejeter
+  if (!cameraSettled) {
+    throw new PdfExportError(
+      'Timeout: caméra encore en transition ou mouvement avant capture.'
+    );
+  }
+
+  // Si la caméra est stabilisée mais que certaines tuiles distantes tardent à répondre,
+  // dégradation gracieuse pour ne pas faire échouer l'export
+  console.warn(
+    '[Export] Délai d\'attente des tuiles de fond écoulé. Capture de l\'état courant du canvas pour préserver la continuité de l\'export.'
   );
 }
 

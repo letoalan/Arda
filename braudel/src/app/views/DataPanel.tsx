@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { Database, Download, UploadCloud, XCircle } from 'lucide-react';
 import { mapService } from '../../services/cartography/map-service';
 import { STYLE_CONFIGS } from '../../core/styles.config';
-import { exportMultiEpochPDF, exportTimelineDrivenPDF, exportToJPEG } from '../../services/export/export-multimedia';
+import { exportMultiEpochPDF, exportTimelineDrivenPDF, exportToJPEG, exportMultiEpochZIP } from '../../services/export/export-multimedia';
 
 
 import { generateStandaloneHtml } from '../../services/export/standalone-template';
@@ -14,8 +14,10 @@ import { exportStoryToWebM } from '../../services/export/video-export';
 import { loadStoryFromStorage } from '../../services/export/story-export';
 import { ExportMultimediaSection } from '../components/data/ExportMultimediaSection';
 import { ExportPdfModal } from '../components/data/ExportPdfModal';
+import { ExportZipModal } from '../components/data/ExportZipModal';
 import { GEOPOLITICA_SOURCES } from '../../services/import/geopoliticaRegistry';
 import { getCatalogTemporalEntities } from '../../services/import/geojson-catalog-service';
+import { extractActiveEpochs } from '../../services/export/pdf-timeline-utils';
 
 
 
@@ -48,6 +50,8 @@ export const DataPanel: React.FC = () => {
   const [exportProgress, setExportProgress] = useState<number | null>(null);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
+  const [isZipModalOpen, setIsZipModalOpen] = useState(false);
+  const [isZipExporting, setIsZipExporting] = useState(false);
 
   const worldName = world.world[0]?.name || 'Monde Braudel';
 
@@ -209,13 +213,109 @@ export const DataPanel: React.FC = () => {
     link.click();
   };
 
+  const handleConfirmSingleZip = async (year: number) => {
+    const map = mapService.getMap();
+    if (!map) return;
+    setIsZipExporting(true);
+    try {
+      const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
+      await exportToJPEG(worldName, year, map, config);
+      setIsZipModalOpen(false);
+    } catch (err) {
+      console.error('Erreur export JPEG unitaire:', err);
+    } finally {
+      setIsZipExporting(false);
+    }
+  };
+
+  const handleConfirmMultiZip = async (selectedEpochs: { year: number; label: string; referenceYear?: number; validFrom?: number; validTo?: number; targetYear?: number }[]) => {
+    const map = mapService.getMap();
+    if (!map) return;
+    setIsZipExporting(true);
+    setExportProgress(0);
+    const initialTime = currentTime;
+    try {
+      const state = useStore.getState();
+      const currentWorld = state.world;
+      const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
+      await exportMultiEpochZIP(
+        worldName,
+        selectedEpochs,
+        map,
+        (year) => setCurrentTime(year),
+        currentWorld.entities,
+        currentWorld.relations,
+        config,
+        (pct) => setExportProgress(pct)
+      );
+      setIsZipModalOpen(false);
+    } catch (err) {
+      console.error('Erreur lors de l\'export Atlas ZIP multi-époques:', err);
+    } finally {
+      setIsZipExporting(false);
+      setExportProgress(null);
+      setCurrentTime(initialTime);
+      const liveWorld = useStore.getState().world;
+      mapService.updateEntities(liveWorld.entities, liveWorld.relations, initialTime, undefined, liveWorld.layers);
+    }
+  };
+
   const handleStoryboardExport = async () => {
     const map = mapService.getMap();
     if (!map) return;
-    const story = loadStoryFromStorage(worldName);
+    const config = STYLE_CONFIGS.find(s => s.id === basemapStyle) || STYLE_CONFIGS[0];
+    const defaultBg = config?.mapPaintOverrides?.background || '#ffffff';
+    const currentBearing = map.getBearing();
+    const currentPitch = map.getPitch();
+    const currentCenter = [map.getCenter().lng, map.getCenter().lat] as [number, number];
+    const currentZoom = map.getZoom();
+
+    let story = loadStoryFromStorage(worldName);
+    // Si la story n'a que la scène par défaut, cibler automatiquement les époques actives (comme pour le PDF)
+    if (story.scenes.length === 1 && story.scenes[0].id === 'scene-1') {
+      const activeEpochs = extractActiveEpochs(world.entities, world.relations, startYear, endYear);
+      const importedEpochs = activeEpochs.filter(e => e.isImportedOnMap || e.entityCount > 0);
+      const epochsList = importedEpochs.length > 0 ? importedEpochs : activeEpochs;
+
+      if (epochsList.length > 1) {
+        story = {
+          ...story,
+          scenes: epochsList.map((ep, idx) => ({
+            id: `scene-epoch-${idx + 1}`,
+            title: ep.label || `Époque ${ep.year}`,
+            body: `Capture cartographique de l'époque ${ep.label || ep.year}.`,
+            mapState: {
+              center: currentCenter,
+              zoom: currentZoom,
+              bearing: currentBearing,
+              pitch: currentPitch,
+              timelineYear: ep.targetYear,
+              visibleLayerIds: []
+            },
+            layout: 'split',
+            transition: {
+              profile: 'standard',
+              durationMode: 'auto',
+              pauseAfterMs: 800,
+              reduceMotionPolicy: 'essential-for-export'
+            }
+          }))
+        };
+      } else {
+        story.scenes[0].mapState = {
+          ...story.scenes[0].mapState,
+          center: currentCenter,
+          zoom: currentZoom,
+          bearing: currentBearing,
+          pitch: currentPitch,
+          timelineYear: currentTime
+        };
+      }
+    }
+
     setExportProgress(0);
     try {
-      await exportStoryboardZIP(worldName, story, map, setCurrentTime, (pct) => setExportProgress(pct));
+      await exportStoryboardZIP(worldName, story, map, setCurrentTime, (pct) => setExportProgress(pct), world.entities, defaultBg);
     } catch (e) {
       console.error('Erreur export storyboard:', e);
     } finally {
@@ -226,7 +326,54 @@ export const DataPanel: React.FC = () => {
   const handleWebmExport = async () => {
     const map = mapService.getMap();
     if (!map) return;
-    const story = loadStoryFromStorage(worldName);
+    const currentBearing = map.getBearing();
+    const currentPitch = map.getPitch();
+    const currentCenter = [map.getCenter().lng, map.getCenter().lat] as [number, number];
+    const currentZoom = map.getZoom();
+
+    let story = loadStoryFromStorage(worldName);
+    // Si la story n'a que la scène par défaut, cibler automatiquement les époques actives
+    if (story.scenes.length === 1 && story.scenes[0].id === 'scene-1') {
+      const activeEpochs = extractActiveEpochs(world.entities, world.relations, startYear, endYear);
+      const importedEpochs = activeEpochs.filter(e => e.isImportedOnMap || e.entityCount > 0);
+      const epochsList = importedEpochs.length > 0 ? importedEpochs : activeEpochs;
+
+      if (epochsList.length > 1) {
+        story = {
+          ...story,
+          scenes: epochsList.map((ep, idx) => ({
+            id: `scene-epoch-${idx + 1}`,
+            title: ep.label || `Époque ${ep.year}`,
+            body: `Capture cartographique de l'époque ${ep.label || ep.year}.`,
+            mapState: {
+              center: currentCenter,
+              zoom: currentZoom,
+              bearing: currentBearing,
+              pitch: currentPitch,
+              timelineYear: ep.targetYear,
+              visibleLayerIds: []
+            },
+            layout: 'split',
+            transition: {
+              profile: 'standard',
+              durationMode: 'auto',
+              pauseAfterMs: 1200,
+              reduceMotionPolicy: 'essential-for-export'
+            }
+          }))
+        };
+      } else {
+        story.scenes[0].mapState = {
+          ...story.scenes[0].mapState,
+          center: currentCenter,
+          zoom: currentZoom,
+          bearing: currentBearing,
+          pitch: currentPitch,
+          timelineYear: currentTime
+        };
+      }
+    }
+
     setExportProgress(0);
     try {
       await exportStoryToWebM(worldName, story, map, setCurrentTime, (pct) => setExportProgress(pct));
@@ -271,12 +418,14 @@ export const DataPanel: React.FC = () => {
       <ExportMultimediaSection
         exportProgress={exportProgress}
         onPdfExport={handleOpenPdfModal}
+        onZipEpochsExport={() => setIsZipModalOpen(true)}
         onJpegExport={handleJpegExport}
         onHtmlSimpleExport={handleHtmlSimpleExport}
         onStoryboardExport={handleStoryboardExport}
         onWebmExport={handleWebmExport}
       />
 
+      {/* Modale Dédiée : Export Atlas PDF */}
       <ExportPdfModal
         isOpen={isPdfModalOpen}
         currentTime={currentTime}
@@ -289,6 +438,21 @@ export const DataPanel: React.FC = () => {
         onConfirmSingle={handleConfirmSinglePdf}
         onConfirmMulti={handleConfirmMultiPdf}
         onClose={() => !isPdfExporting && setIsPdfModalOpen(false)}
+      />
+
+      {/* Modale Dédiée : Collection Images JPEG (ZIP) */}
+      <ExportZipModal
+        isOpen={isZipModalOpen}
+        currentTime={currentTime}
+        startYear={startYear}
+        endYear={endYear}
+        entities={world.entities}
+        relations={world.relations}
+        isExporting={isZipExporting}
+        exportProgress={exportProgress}
+        onConfirmSingleZip={handleConfirmSingleZip}
+        onConfirmMultiZip={handleConfirmMultiZip}
+        onClose={() => !isZipExporting && setIsZipModalOpen(false)}
       />
     </div>
   );

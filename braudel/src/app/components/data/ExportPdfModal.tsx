@@ -1,5 +1,3 @@
-// app/components/data/ExportPdfModal.tsx
-
 import React, { useState, useMemo } from 'react';
 import { X, FileText, Layers, Calendar, Download, CheckSquare, Square, CheckCircle2 } from 'lucide-react';
 import { extractActiveEpochs, getHistoricalPeriodLabel } from '../../../services/export/pdf-timeline-utils';
@@ -16,7 +14,7 @@ interface ExportPdfModalProps {
   isExporting: boolean;
   exportProgress: number | null;
   onConfirmSingle: (year: number, periodLabel?: string) => Promise<void>;
-  onConfirmMulti: (selectedEpochs: { year: number; label: string }[]) => Promise<void>;
+  onConfirmMulti: (selectedEpochs: { year: number; label: string; referenceYear?: number; validFrom?: number; validTo?: number; targetYear?: number }[]) => Promise<void>;
   onClose: () => void;
 }
 
@@ -142,7 +140,6 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
       })));
     }
   };
-
 
   if (!isOpen) return null;
 
@@ -491,7 +488,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
               ? 'Export en cours...' 
               : scopeMode === 'current' 
                 ? 'Exporter 1 page A4' 
-                : `Générer l'Atlas (${selectedEpochsList.length} page${selectedEpochsList.length > 1 ? 's' : ''})`}
+                : `Générer l'Atlas PDF (${selectedEpochsList.length} page${selectedEpochsList.length > 1 ? 's' : ''})`}
           </button>
         </div>
       </div>

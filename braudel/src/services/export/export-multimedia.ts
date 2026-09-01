@@ -50,4 +50,5 @@ export {
 export {
   exportToJPEG,
   exportTimeLapseZIP,
+  exportMultiEpochZIP,
 } from './modules/media-export-utils';

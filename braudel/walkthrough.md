@@ -1,37 +1,40 @@
-# Walkthrough — Échelle Différenciée de la Minicarte Bento (Macro vs Continentale)
+# Walkthrough — Résolution de l'Erreur `unsupported codec` dans l'Export Vidéo
 
-## Problématique Résolue
-Dans le viewer autonome Bento (`standalone-template.ts`), la mini-carte de contexte (`context-minimap-box`) permettait de basculer le libellé du badge (`Macro` $\leftrightarrow$ `Continentale`), mais **l'échelle cartographique restait statique** (zoom figé à 1.2 sans variation de cadrage ni adaptation du zoom et de la boîte de visualisation).
+## Diagnostic
+Lors du déclenchement de l'export vidéo WebM, le navigateur a levé l'exception :
+```
+DOMException: MediaRecorder constructor: video/webm;codecs=vp9 indicates an unsupported codec
+at exportStoryToWebM (video-export.ts:23)
+```
+- Le codec `video/webm;codecs=vp9` était codé en dur sans vérification préalable de la prise en charge matérielle/logicielle du navigateur client (`MediaRecorder.isTypeSupported`).
+- Sur certains environnements (comme Firefox sous Windows ou configurations sans accélération VP9), cette chaîne stricte est rejetée par le constructeur.
 
-## Modifications Apportées
+---
 
-### 1. Logique Dynamique d'Échelle & Centrage ([`standalone-timeline-logic.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts))
-- **Vue Macro Générale** :
-  - Niveau de zoom planétaire global : `zoom: 0.9` (ou centré sur `doc.map?.center || [12.5, 42.0]`).
-  - L'indicateur rouge (`#context-minimap-indicator`) se projette selon les coordonnées sphériques réelles du centre de la caméra principale via `contextMinimapInstance.project(center)`.
-  - Format compact 145×145px, badge bleu accentué `Macro`.
-- **Vue Continentale Régionale** :
-  - Niveau de zoom continental rapproché : `zoom: 3.2`.
-  - La minicarte se focalise et suit le déplacement de la caméra principale (`contextMinimapInstance.setCenter(map.getCenter())`), permettant d'observer en permanence le continent et le bassin géographique autour du point d'observation.
-  - L'indicateur rouge est maintenu au centre géométrique du canevas de la minicarte.
-  - Animation cinématique fluide (`easeTo`, durée 350ms) lors de l'alternance d'échelle.
-  - Écoute des événements `move` de la minicarte pour que le curseur reste calé pendant les vols de transition.
+## Solutions Appliquées
 
-### 2. Styles CSS & Rendu Visuel ([`standalone-bento-styles.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-bento-styles.ts))
-- Ajout de la classe `.context-minimap-box.is-continental-view` (et alias `.is-macro-expanded`) :
-  - Agrandissement fluide de 145px à **220px × 220px** avec transition cubique (`cubic-bezier(0.16, 1, 0.3, 1)`).
-  - Badge vert émeraude `#10B981` pour identifier sans ambiguïté la vue continentale.
-  - Halo d'accentuation dynamique sur l'indicateur rouge (`box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3)`).
+### 1. Négociation Dynamique des Codecs ([`video-export.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/video-export.ts#L7-L35))
+- Implémentation de `getSupportedVideoMimeType()` testant en cascade les codecs :
+  1. `video/webm;codecs=vp9,opus`
+  2. `video/webm;codecs=vp9`
+  3. `video/webm;codecs=vp8,opus`
+  4. `video/webm;codecs=vp8`
+  5. `video/webm;codecs=h264`
+  6. `video/webm`
+  7. `video/mp4;codecs=h264`
+  8. `video/mp4`
+- Si un format spécifique est accepté, il est transmis à `MediaRecorder`.
+- Si le constructeur échoue malgré tout, un bloc `try/catch` applique un **repli de sécurité ultime** en instanciant `new MediaRecorder(stream)` sans options pour laisser le navigateur utiliser son codec par défaut sans jamais lever d'exception bloquante.
 
-### 3. Modèle HTML ([`standalone-template.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts))
-- Info-bulle clarifiée : `title="Mini-carte de contexte (cliquer pour alterner vue générale macro / continentale)"`.
+### 2. Détection d'Extension Automatique
+- Le nom du fichier téléchargé adapte son extension (`.webm` ou `.mp4`) en fonction du codec effectif retenu par `MediaRecorder.mimeType`.
 
-### 4. Tests Automatisés & Documentation Wiki-as-Code
-- Ajout des assertions sur les échelles et classes CSS dans [`bento-html-export.test.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/tests/bento-html-export.test.ts).
-- Mise à jour de la documentation technique :
-  - [`standalone-timeline-logic.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.md)
-  - [`standalone-bento-styles.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-bento-styles.md)
+### 3. Synchronisation Caméra & Époques dans `handleWebmExport` ([`DataPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/DataPanel.tsx#L326-L375))
+- Si aucune scène personnalisée n'est configurée, l'export vidéo parcourt automatiquement les époques actives du monde avec conservation de l'orientation (**Al-Idrisi `bearing: 180°`**) et pauses pédagogiques de 1,2 seconde.
 
-## Validation des Tests
-- **Compilation TypeScript** : `npx tsc --noEmit` $\rightarrow$ 0 erreur.
-- **Suite de tests Vitest** : 28 fichiers de tests, **163 tests passants sur 163 (100% de réussite)**.
+---
+
+## Validation
+- **TypeScript** : 0 erreur (`tsc --noEmit`).
+- **Tests unitaires** : 28 fichiers de tests, **164/164 tests passants (100%)**.
+- **Wiki-as-Code** : [`video.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/video.md) mis à jour.

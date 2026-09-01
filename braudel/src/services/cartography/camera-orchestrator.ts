@@ -120,22 +120,27 @@ export async function playSceneTransition(
   const essential = isExport || transition.reduceMotionPolicy === 'essential-for-export';
 
   // 3. Exécution de la transition
+  const currentBearing = typeof map.getBearing === 'function' ? map.getBearing() : 0;
+  const currentPitch = typeof map.getPitch === 'function' ? map.getPitch() : 0;
+  const targetBearing = toState.bearing !== undefined ? toState.bearing : currentBearing;
+  const targetPitch = toState.pitch !== undefined ? toState.pitch : currentPitch;
+
   if (moveType === 'static') {
     // Aucune animation caméra
   } else if (moveType === 'jumpTo') {
     map.jumpTo({
       center: toState.center,
       zoom: toState.zoom,
-      pitch: toState.pitch || 0,
-      bearing: toState.bearing || 0
+      pitch: targetPitch,
+      bearing: targetBearing
     });
   } else {
     // flyTo ou easeTo
     const flyOptions: any = {
       center: toState.center,
       zoom: toState.zoom,
-      pitch: toState.pitch || 0,
-      bearing: toState.bearing || 0,
+      pitch: targetPitch,
+      bearing: targetBearing,
       essential
     };
 

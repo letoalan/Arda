@@ -15,11 +15,15 @@ Les approches précédentes (`sourcedata` + `render` + double `requestAnimationF
 - `render` se déclenche à chaque cycle de peinture, pas nécessairement après le swap complet des données.
 - L'événement `idle` est émis uniquement quand le pipeline complet (données → worker → GPU → framebuffer) est terminé.
 
-## Résilience WebGL
-Le module détecte la perte de contexte WebGL (`isWebGLContextLost`) à deux niveaux :
-1. **Pré-polling** : avant de commencer le polling des tuiles, tente `restoreContext()` et attend jusqu'à 3s.
-2. **Intra-polling** : si le contexte est perdu pendant le polling, retourne immédiatement.
-3. **Timeout** : dégradation gracieuse (warn) au lieu de throw.
+## Résilience WebGL & Réseau
+Le module gère la stabilité de l'export à plusieurs niveaux :
+1. **Perte de contexte WebGL** (`isWebGLContextLost`) :
+   - Détection pré-polling et tentative de restauration via `WEBGL_lose_context` (jusqu'à 3s).
+   - Détection intra-polling : capture de l'état disponible sans interrompre le document.
+2. **Tolérance réseau tuiles de fond (`waitForBackgroundTilesReady`)** :
+   - Polling étendu à 50 tentatives (2.5s) pour permettre aux tuiles distantes ou lourdes (ex: Al-Idrisi) de charger.
+   - **Dégradation gracieuse** : si la caméra est stabilisée mais que des tuiles de fond tardent ou ont échoué sur le réseau externe, capture de l'état présent au lieu de lever une exception fatale `PdfExportError`.
+   - Rejet strict `PdfExportError` réservé uniquement aux mouvements caméra non stabilisés (`!cameraSettled`).
 
 ## Dépendances
 - `pdf-types.ts` (prédicat `isEntityVisibleAt`)

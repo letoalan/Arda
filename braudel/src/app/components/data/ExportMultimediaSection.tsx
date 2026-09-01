@@ -6,6 +6,7 @@ import { FileText, Image as ImageIcon, Globe, BookOpen, Video } from 'lucide-rea
 interface ExportMultimediaSectionProps {
   exportProgress: number | null;
   onPdfExport: () => void;
+  onZipEpochsExport?: () => void;
   onJpegExport: () => void;
   onHtmlSimpleExport: () => void;
   onStoryboardExport: () => void;
@@ -15,6 +16,7 @@ interface ExportMultimediaSectionProps {
 export const ExportMultimediaSection: React.FC<ExportMultimediaSectionProps> = ({
   exportProgress,
   onPdfExport,
+  onZipEpochsExport,
   onJpegExport,
   onHtmlSimpleExport,
   onStoryboardExport,
@@ -27,13 +29,16 @@ export const ExportMultimediaSection: React.FC<ExportMultimediaSectionProps> = (
       </h4>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-        <button className="btn btn-secondary" onClick={onPdfExport} style={{ fontSize: '0.75rem', padding: '6px' }}>
-          <FileText size={13} /> Export PDF
+        <button className="btn btn-secondary" onClick={onPdfExport} style={{ fontSize: '0.75rem', padding: '6px' }} title="Exporter une page ou l'atlas complet des époques en PDF">
+          <FileText size={13} /> Atlas PDF
         </button>
-        <button className="btn btn-secondary" onClick={onJpegExport} style={{ fontSize: '0.75rem', padding: '6px' }}>
-          <ImageIcon size={13} /> Image JPEG
+        <button className="btn btn-secondary" onClick={onZipEpochsExport || onPdfExport} style={{ fontSize: '0.75rem', padding: '6px' }} title="Exporter la collection d'images JPEG HD zippées pour chaque époque active">
+          <BookOpen size={13} /> Collection JPEG (ZIP)
         </button>
-        <button className="btn btn-secondary" onClick={onHtmlSimpleExport} style={{ fontSize: '0.75rem', padding: '6px' }}>
+        <button className="btn btn-secondary" onClick={onJpegExport} style={{ fontSize: '0.75rem', padding: '6px' }} title="Capturer la vue actuelle de la carte en JPEG HD">
+          <ImageIcon size={13} /> Image JPEG HD
+        </button>
+        <button className="btn btn-secondary" onClick={onHtmlSimpleExport} style={{ fontSize: '0.75rem', padding: '6px' }} title="Exporter l'application autonome Bento interactive">
           <Globe size={13} /> HTML Autonome
         </button>
         <button
@@ -41,19 +46,18 @@ export const ExportMultimediaSection: React.FC<ExportMultimediaSectionProps> = (
           onClick={onStoryboardExport}
           disabled={exportProgress !== null}
           style={{ fontSize: '0.75rem', padding: '6px' }}
+          title="Exporter le pack de scènes narratives du Story Editor (visuels HD, story.json, script.md)"
         >
-          <BookOpen size={13} /> Storyboard ZIP
+          <BookOpen size={13} /> Storyboard Pack
         </button>
-      </div>
-
-      <div style={{ marginTop: '8px' }}>
         <button
           className="btn btn-secondary"
           onClick={onWebmExport}
           disabled={exportProgress !== null}
-          style={{ width: '100%', fontSize: '0.75rem', padding: '6px' }}
+          style={{ fontSize: '0.75rem', padding: '6px' }}
+          title="Exporter une vidéo WebM fluide du récit (VP9 30fps)"
         >
-          <Video size={13} /> Export Vidéo WebM (VP9 30fps)
+          <Video size={13} /> Vidéo WebM
         </button>
       </div>
 

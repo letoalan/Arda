@@ -9,6 +9,7 @@ import { generateStandaloneHtml } from '../../services/export/standalone-templat
 import { STYLE_CONFIGS } from '../../core/styles.config';
 import { parseArdaDocFromHtml, migrateArdaDoc } from '../../services/export/modules/arda-doc-parser';
 import { SlideEditorModal } from './SlideEditorModal';
+import { mapService } from '../../services/cartography/map-service';
 
 interface StoryEditorPanelProps {
   onStartPreview?: (story: StoryProject) => void;
@@ -43,13 +44,21 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
   const activeScene = story.scenes.find(s => s.id === activeSceneId) || story.scenes[0];
 
   const handleAddScene = () => {
+    const map = mapService.getMap();
+    const center = map ? [map.getCenter().lng, map.getCenter().lat] : [2, 45];
+    const zoom = map ? map.getZoom() : 3;
+    const pitch = map ? map.getPitch() : 0;
+    const bearing = map ? map.getBearing() : 0;
+
     const newScene: StoryScene = {
       id: `scene-${Date.now()}`,
       title: `Nouvelle Scène #${story.scenes.length + 1}`,
       body: 'Décrivez cette nouvelle étape de votre récit...',
       mapState: {
-        center: [2, 45],
-        zoom: 3,
+        center: center as [number, number],
+        zoom,
+        pitch,
+        bearing,
         timelineYear: currentTime,
         visibleLayerIds: []
       },
