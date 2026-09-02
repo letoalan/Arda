@@ -1,5 +1,4 @@
-Voici un plan d'implémentation pour un **mode Studio** de type CapCut, ajouté en amont de l'export, permettant de manipuler la timeline des périodes, d'y intercaler des pistes vidéo, et d'y synchroniser des pistes audio (musique, voix). [%2BGLXShV008cbLQKvGOxJH0fVSGCBh1vAbaQF10Hqmwf5zbCJLo01umAsGXP8VnIh1EB3s7Zos6TwQQ12SHI2N%2BHFRoawKoDLyOItroWS4n5mkkP5jv8U2MrIM7fRlVkstd1mgL%2FVYMF903SCM%2FjXjC3iOLUBjqZAUAPckS%2Bx3fjFWsmmCkyBVktWcojVFr0%2BP0OWoZSuuzIZ%2FyGsjy7EE8PcFrEe9tjf1vpMVRbZhwoY1BVDRXKLeoiDgLYlpl%2Bl5pB40RnxXpl4nm27oaWr6dwhiy9Gk2p1ZFqk6Uyt%2FpVkr40FizjC
-
+Voici un plan d'implémentation pour un **mode Studio** de type CapCut, ajouté en amont de l'export, permettant de manipuler la timeline des périodes, d'y intercaler des pistes vidéo, et d'y synchroniser des pistes audio (musique, voix). 
 ## Architecture générale proposée
 
 Le mode Studio s'insère comme une étape intermédiaire entre le `StoryProject` existant et le pipeline d'export déjà fiabilisé (`video-export.ts`), sans le remplacer : il produit un **plan de montage enrichi** (`EditTimeline`) qui devient la nouvelle entrée du moteur d'enregistrement. Le pipeline actuel (canvas relais, cascade de codecs, validation du Blob) reste inchangé en sortie ; seule l'entrée s'enrichit de données temporelles et audio. 
