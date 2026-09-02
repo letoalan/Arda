@@ -30,7 +30,7 @@ export const CONTEMPORARY_STYLE_CONFIGS: StyleConfig[] = [
       neutral: '#7f7f7f',
     },
     graticule: {
-      enabled: true,
+      enabled: false,
       step: 10,
       color: '#784421',
       opacity: 0.35,

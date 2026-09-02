@@ -82,6 +82,8 @@ export type StorySlideBlock = z.infer<typeof StorySlideBlockSchema>;
 export const StorySceneSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
+  periodNumber: z.number().optional(),
+  totalPeriods: z.number().optional(),
   body: z.string().optional(),
   mapState: StoryMapStateSchema,
   mediaIds: z.array(z.string()).optional(),

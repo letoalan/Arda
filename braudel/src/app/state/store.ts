@@ -142,13 +142,14 @@ export const useStore = create<AppState>((set, get) => ({
   addRelation: (sourceId, targetId, type, direction, weight, isSpatial, entityId, validFrom, validTo) => set(handleAddRelation(get(), sourceId, targetId, type, direction, weight, isSpatial, entityId, validFrom, validTo)),
   removeRelation: (relationId) => set(handleRemoveRelation(get(), relationId)),
   updateReliefStyle: (exaggeration, shadowColor, highlightColor) => {
+    const clampedExaggeration = Math.min(1.0, Math.max(0, Number(exaggeration) || 0));
     set((state) => {
       const reliefStyle = state.world.styles.find((s) => s.type === 'relief');
       let updatedStyles;
       if (reliefStyle) {
         updatedStyles = state.world.styles.map((s) => {
           if (s.id === reliefStyle.id) {
-            const updated = { ...s, properties: { exaggeration, shadowColor, highlightColor } };
+            const updated = { ...s, properties: { exaggeration: clampedExaggeration, shadowColor, highlightColor } };
             db.put('styles', updated);
             return updated;
           }
@@ -160,7 +161,7 @@ export const useStore = create<AppState>((set, get) => ({
           worldId: state.world.world[0]?.id || crypto.randomUUID(),
           type: 'relief',
           name: 'Style Relief',
-          properties: { exaggeration, shadowColor, highlightColor }
+          properties: { exaggeration: clampedExaggeration, shadowColor, highlightColor }
         };
         db.put('styles', newStyle);
         updatedStyles = [...state.world.styles, newStyle];

@@ -9,7 +9,7 @@ import {
   put 
 } from '../../../services/persistence/indexeddb';
 import { createMeta } from '../../../core/schema/meta';
-import { STYLE_CONFIGS } from '../../../core/styles.config';
+import { getBasemapFeatureDefaults } from '../../../core/styles/styleFeatureDefaults';
 
 export const emptyWorld: DatabaseSchema = {
   meta: [],
@@ -75,14 +75,16 @@ export async function handleInitFromDB(worldId?: string) {
   const wRecord = targetWorldRecord as any;
   const defaultStyle = wRecord.worldType === 'fictional' ? 'tolkien_high_fantasy' : 'contemporary_current';
   const effectiveStyle = (wRecord.basemapStyle as any) || defaultStyle;
-  const styleConfig = STYLE_CONFIGS.find(s => s.id === effectiveStyle);
+  const defaults = getBasemapFeatureDefaults(effectiveStyle);
 
   return {
     world: loadedWorld,
     worldsList: allWorlds,
     basemapStyle: effectiveStyle,
     basemapLabelsVisible: wRecord.basemapLabelsVisible !== undefined ? wRecord.basemapLabelsVisible : true,
-    basemapBordersVisible: wRecord.basemapBordersVisible !== undefined ? wRecord.basemapBordersVisible : (styleConfig ? styleConfig.bordersVisibleByDefault : true),
+    basemapBordersVisible: wRecord.basemapBordersVisible !== undefined ? wRecord.basemapBordersVisible : defaults.bordersVisible,
+    portulanRhumbVisible: wRecord.portulanRhumbVisible !== undefined ? wRecord.portulanRhumbVisible : defaults.portulanRhumbVisible,
+    graticuleVisible: wRecord.graticuleVisible !== undefined ? wRecord.graticuleVisible : defaults.graticuleVisible,
     activeEmpire: (wRecord.activeEmpire as any) || 'all',
     startYear: wRecord.startYear !== undefined ? wRecord.startYear : -3000,
     endYear: wRecord.endYear !== undefined ? wRecord.endYear : 2100,

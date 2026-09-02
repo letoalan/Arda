@@ -15,8 +15,8 @@ Contrairement aux exports statiques (PDF, JPEG unitaire) ou aux séquences d'ima
 | **Codec Vidéo** | **VP9** (avec cascade de repli) | Négociation dynamique automatique : teste en priorité `video/webm;codecs=vp9`, puis `vp8`, `h264`, `webm` générique, puis le codec par défaut du navigateur. Évite toute exception `DOMException: unsupported codec`. |
 | **Cadence (Framerate)** | **30 FPS** (standard) / 60 FPS (optionnel) | Fluidité optimale lors des mouvements de caméra (`flyTo`, `easeTo`). |
 | **Résolution** | **Native** (1920×1080 Full HD, 1440p, 4K) | Déterminée directement par les dimensions du viewport WebGL, sans étirement ni déformation de ratio d'aspect. |
-| **Mode de Capture** | `HTMLCanvasElement.captureStream(fps)` | Enregistrement direct depuis le framebuffer GPU via l'API standard `MediaRecorder`. |
-| **Segmentation** | Tranches de 100 ms | Évite toute saturation mémoire lors des récits comportant de nombreuses scènes. |
+| **Mode de Capture** | **Canvas 2D Relais** (`recordCanvas.captureStream`) synchronisé sur `requestAnimationFrame` | Élimine tout conflit de lecture directe sur le buffer WebGL MapLibre, évitant définitivement les erreurs `WebGL context was lost`. Assure une alimentation vidéo continue et produit un fichier vidéo complet et volumineux. |
+| **Segmentation** | Tranches régulières de 250 ms | Équilibre optimal entre réactivité du flux et stabilité d'encodage pour le codec. |
 
 ---
 
@@ -40,7 +40,32 @@ Contrairement aux exports statiques (PDF, JPEG unitaire) ou aux séquences d'ima
 
 ---
 
-## 4. Comparatif des Formats de Sortie
+## 4. Compteurs d'Avancement et Évaluation de la Tâche
+
+Pour garantir une expérience utilisateur transparente et prévisible lors de la génération de vidéos potentiellement longues, le pipeline vidéo intègre un système d'évaluation préalable et un **double compteur en temps réel** :
+
+### A. Évaluation Préalable de la Tâche (`estimateVideoDuration`)
+Avant tout déclenchement de l'enregistrement, le moteur analyse le projet de récit et calcule :
+- **Nombre total de scènes/plans** à enregistrer.
+- **Durée totale estimée** de la vidéo finale : calculée à partir de la somme des durées de vol (`durationMs` ou 2,2s par défaut) et des pauses d'observation (`pauseAfterMs: 800ms`), plus le temps de pré-stabilisation.
+- **Résolution native** exacte du viewport WebGL (ex: 1920×1080).
+- **Codec vidéo compatible** détecté automatiquement (`VP9`, `VP8`, `H.264`, etc.).
+
+### B. Compteur 1 : Rendu & Génération Cartographique (Capture en direct)
+Pendant l'animation de la caméra et des entités sur l'écran :
+- **Jauge de progression cartographique** (0% → 100%).
+- **Index de scène et intitulé** : ex: *Scène 3 / 5 — Époque An 1154 (Al-Idrisi)*.
+- **Chronomètre dynamique** : affichage en temps réel du **temps écoulé** (`elapsedMs`) et du **temps restant estimé** (`estimatedRemainingMs`).
+
+### C. Compteur 2 : Encodage Vidéo GPU & Assemblage Final
+L'encodage vidéo par le compresseur matériel du navigateur (`MediaRecorder`) s'exécute **en continu et en parallèle** de la saisie cartographique :
+- **Démarrage immédiat** : Dès la réception de la première tranche de 100 ms émise par `ondataavailable`, la jauge violette s'anime en direct (1% → 90%), reflétant la compression progressive des images par le GPU/codec (`chunkCount / estimatedTotalChunks`).
+- **Télémétrie en direct** : Affichage en continu du débit binaire mesuré (ex: `2.4 Mbps`), du nombre de fragments encodés et du volume de données.
+- **Phase d'Assemblage & Post-Traitement** : À la fin du parcours des scènes, le compteur effectue l'assemblage final des buffers (90% → 100%), indexe les métadonnées de durée et génère le fichier conteneur WebM / MP4 sans latence ni gel à 0%.
+
+---
+
+## 5. Comparatif des Formats de Sortie
 
 | Usage | Vidéo WebM (`.webm`) | Collection JPEG ZIP (`.zip`) | Atlas PDF (`.pdf`) |
 | :--- | :--- | :--- | :--- |
@@ -52,7 +77,7 @@ Contrairement aux exports statiques (PDF, JPEG unitaire) ou aux séquences d'ima
 
 ---
 
-## 5. Compatibilité et Exploitation
+## 6. Compatibilité et Exploitation
 
 - **Lecteurs média directs** : VLC, mpv, Windows Media Player (avec codecs WebM), QuickTime (via convertisseur ou composant tiers).
 - **Navigateurs Web** : Prise en charge native complète sur Chrome, Edge, Firefox, Safari (balise standard `<video src="recit.webm" controls>`).
@@ -64,12 +89,29 @@ Contrairement aux exports statiques (PDF, JPEG unitaire) ou aux séquences d'ima
 
 ---
 
-## 6. Dépendances et Fichiers Liés
+## 7. Dépendances et Fichiers Liés
 
 - **Implémentation TypeScript** : [`video-export.ts`](./video-export.ts)
+- **Modale d'export dédiée** : [`../../app/components/data/ExportVideoModal.tsx`](../../app/components/data/ExportVideoModal.tsx)
 - **Orchestration caméra** : [`../cartography/camera-orchestrator.ts`](../cartography/camera-orchestrator.ts)
 - **Schéma de données Story** : [`../../core/schema/story.ts`](../../core/schema/story.ts)
 - **Composant IHM déclencheur** : [`../../app/components/data/ExportMultimediaSection.tsx`](../../app/components/data/ExportMultimediaSection.tsx)
+
+## 8. Fiabilisation et Garde-fous (implementation-video.md)
+
+Le pipeline vidéo intègre 7 niveaux de protection pour prévenir la génération de fichiers vides ou corrompus, implémentés suite au diagnostic de [`implementation-video.md`](../../implementation-video.md) :
+
+| # | Garde-fou | Mécanisme |
+|:---|:---|:---|
+| 1 | **Instrumentation de diagnostic** | Logs horodatés `[Video Export]` à chaque étape critique du pipeline |
+| 2 | **Garde-fou dimensions canvas** | Attente bloquante jusqu'à `width > 0 && height > 0` (timeout 5 s) + validation piste `readyState` |
+| 3 | **Validation première frame** | Échantillonnage de pixels pour détecter les frames 100% noires/fond initial |
+| 4 | **Vérification codec réel** | Mini-enregistrement de test (300 ms, canvas 64×64) avant l'export complet |
+| 5 | **Timer proportionnel** | `min(15s, max(3s, durée × 0.5))` + délai 200 ms post-`requestData()` |
+| 6 | **Validation Blob** | Rejet si `blob.size < 1024` octets — aucun fichier corrompu téléchargé |
+| 7 | **Retour IHM explicite** | Modale d'erreur rouge avec message détaillé + bouton de relance FPS réduit |
+
+---
 
 ## Fil d'Ariane
 [services/](../services.md) -> [export/](./export.md) -> **video.md**

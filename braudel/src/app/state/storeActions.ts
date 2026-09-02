@@ -3,6 +3,7 @@
 import { createMeta } from '../../core/schema/meta';
 import { createRealWorld as createRealWorldRecord, createFictionalWorld as createFictionalWorldRecord } from '../../core/schema/world';
 import { BasemapStyleId } from '../../core/styles.config';
+import { getBasemapFeatureDefaults } from '../../core/styles/styleFeatureDefaults';
 import * as db from '../../services/persistence/indexeddb';
 import * as importService from '../../services/import/index';
 import { emptyWorld } from './worldSlice';
@@ -23,6 +24,9 @@ export async function executeCreateRealWorld(name: string, description?: string,
     relations: [],
   };
 
+  const effectiveStyle = basemapStyle || 'contemporary_current';
+  const defaults = getBasemapFeatureDefaults(effectiveStyle);
+
   return {
     id: worldRecord.id,
     stateUpdate: {
@@ -31,7 +35,10 @@ export async function executeCreateRealWorld(name: string, description?: string,
       startYear,
       endYear,
       currentTime: startYear,
-      basemapStyle: basemapStyle || 'contemporary_current',
+      basemapStyle: effectiveStyle,
+      portulanRhumbVisible: defaults.portulanRhumbVisible,
+      graticuleVisible: defaults.graticuleVisible,
+      basemapBordersVisible: defaults.bordersVisible,
     },
   };
 }
@@ -52,6 +59,9 @@ export async function executeCreateFictionalWorld(name: string, description?: st
     relations: [],
   };
 
+  const fictionalStyle = 'tolkien_high_fantasy' as const;
+  const defaults = getBasemapFeatureDefaults(fictionalStyle);
+
   return {
     id: worldRecord.id,
     stateUpdate: {
@@ -60,7 +70,10 @@ export async function executeCreateFictionalWorld(name: string, description?: st
       startYear,
       endYear,
       currentTime: startYear,
-      basemapStyle: 'tolkien_high_fantasy' as const,
+      basemapStyle: fictionalStyle,
+      portulanRhumbVisible: defaults.portulanRhumbVisible,
+      graticuleVisible: defaults.graticuleVisible,
+      basemapBordersVisible: defaults.bordersVisible,
     },
   };
 }

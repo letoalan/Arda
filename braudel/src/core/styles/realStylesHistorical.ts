@@ -46,7 +46,7 @@ export const HISTORICAL_STYLE_CONFIGS: StyleConfig[] = [
       borderWidth: 4,
     },
     graticule: {
-      enabled: true,
+      enabled: false,
       step: 10,
       color: '#991b1b',
       opacity: 0.4,
@@ -103,7 +103,7 @@ export const HISTORICAL_STYLE_CONFIGS: StyleConfig[] = [
       borderWidth: 4,
     },
     rhumbLines: {
-      enabled: true,
+      enabled: false,
       preset: 'medieval',
       labels: ['Tramontana', 'Greco', 'Levante', 'Scirocco', 'Ostria', 'Libeccio', 'Ponente', 'Maestro'],
     },
@@ -133,7 +133,7 @@ export const HISTORICAL_STYLE_CONFIGS: StyleConfig[] = [
       borderWidth: 8,
     },
     rhumbLines: {
-      enabled: true,
+      enabled: false,
       preset: 'renaissance',
     },
     fontFamily: '"IM Fell English", "Georgia", serif',
@@ -188,7 +188,7 @@ export const HISTORICAL_STYLE_CONFIGS: StyleConfig[] = [
       borderWidth: 6,
     },
     rhumbLines: {
-      enabled: true,
+      enabled: false,
       preset: 'medieval',
       labels: ['Janūb (Sud)', 'Shamāl (Nord)', 'Sharq (Est)', 'Gharb (Ouest)'],
     },
@@ -219,12 +219,12 @@ export const HISTORICAL_STYLE_CONFIGS: StyleConfig[] = [
     },
     engravingFilter: true,
     rhumbLines: {
-      enabled: true,
+      enabled: false,
       preset: 'renaissance',
       labels: ['Nord', 'Nord-Est', 'Est', 'Sud-Est', 'Sud', 'Sud-Ouest', 'Ouest', 'Nord-Ouest'],
     },
     graticule: {
-      enabled: true,
+      enabled: false,
       step: 10,
       color: '#7a5a3a',
       opacity: 0.45,
@@ -257,7 +257,7 @@ export const HISTORICAL_STYLE_CONFIGS: StyleConfig[] = [
     demEnabled: true,
     demExaggeration: 1.6,
     graticule: {
-      enabled: true,
+      enabled: false,
       step: 10,
       color: '#3b6e8c',
       opacity: 0.4,
@@ -298,7 +298,7 @@ export const HISTORICAL_STYLE_CONFIGS: StyleConfig[] = [
       color: '#22c55e',
     },
     graticule: {
-      enabled: true,
+      enabled: false,
       step: 10,
       color: '#22c55e',
       opacity: 0.3,

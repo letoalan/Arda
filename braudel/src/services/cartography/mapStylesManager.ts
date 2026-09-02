@@ -2,17 +2,35 @@
 
 import maplibregl from 'maplibre-gl';
 import { STYLE_CONFIGS, BasemapStyleId } from '../../core/styles.config';
+import { logCarto } from './modules/carto-logger';
+
+let activeStyleUrl: string | null = null;
+
+export function resetActiveStyleUrl() {
+  activeStyleUrl = null;
+}
+
+export function setActiveStyleUrl(url: string | null) {
+  activeStyleUrl = url;
+}
 
 export function applyBasemapStyle(map: maplibregl.Map, styleId: BasemapStyleId) {
   const styleConfig = STYLE_CONFIGS.find((s) => s.id === styleId);
   if (!styleConfig) return;
 
   const style = styleConfig.mapStyleUrl;
+  const targetBearing = styleConfig.bearing ?? 0;
+  logCarto('APPLY_BASEMAP_STYLE', { styleId, styleUrl: style, targetBearing });
+
   if (style) {
-    map.setStyle(style as any);
+    if (activeStyleUrl !== style) {
+      activeStyleUrl = style;
+      map.setStyle(style as any);
+    } else {
+      logCarto('APPLY_BASEMAP_STYLE_REUSE', `Style URL déjà actif (${style}), réutilisation sans destruction du pipeline WebGL`);
+    }
   }
 
-  const targetBearing = styleConfig.bearing ?? 0;
   try {
     map.rotateTo(targetBearing, { duration: 1000 });
   } catch (e) {}
@@ -23,7 +41,7 @@ export function applyMapPaintOverrides(map: maplibregl.Map, styleId: BasemapStyl
   if (!style || !style.layers) return;
 
   const styleConfig = STYLE_CONFIGS.find((s) => s.id === styleId);
-
+  logCarto('APPLY_PAINT_OVERRIDES_START', { styleId, totalLayers: style.layers.length });
 
   // 1. Injection du fond raster pour l'imagerie Esri Satellitaire ou NASA Vue Nocturne
   if (styleId === 'contemporary_satellite' || styleId === 'nasa_night_lights') {
@@ -84,14 +102,14 @@ export function applyMapPaintOverrides(map: maplibregl.Map, styleId: BasemapStyl
       }
 
       // Masquer les aplats de couleur (terres, eaux, parcs) pour révéler la photo satellitaire/nocturne
-      if (layer.type === 'fill' && !id.startsWith('braudel-')) {
+      if (layer.type === 'fill' && !id.startsWith('braudel-') && !id.startsWith('colonial-') && !id.startsWith('rhumb-') && !id.startsWith('geo-reference-')) {
         try {
           map.setPaintProperty(layer.id, 'fill-opacity', 0);
         } catch (e) {}
       }
 
       // Rehausser la lisibilité des villes et étiquettes
-      if (layer.type === 'symbol' && !id.startsWith('braudel-') && !id.startsWith('geo-reference-') && !id.startsWith('colonial-graticule-')) {
+      if (layer.type === 'symbol' && !id.startsWith('braudel-') && !id.startsWith('geo-reference-') && !id.startsWith('colonial-graticule-') && !id.startsWith('rhumb-')) {
         try {
           map.setPaintProperty(layer.id, 'text-color', '#ffffff');
           map.setPaintProperty(layer.id, 'text-halo-color', '#000000');
@@ -100,7 +118,7 @@ export function applyMapPaintOverrides(map: maplibregl.Map, styleId: BasemapStyl
       }
 
       // Rehausser la visibilité des voies de communication
-      if (layer.type === 'line' && (id.includes('road') || id.includes('highway') || id.includes('transportation')) && !id.startsWith('braudel-')) {
+      if (layer.type === 'line' && (id.includes('road') || id.includes('highway') || id.includes('transportation')) && !id.startsWith('braudel-') && !id.startsWith('colonial-') && !id.startsWith('rhumb-')) {
         try {
           map.setPaintProperty(layer.id, 'line-color', styleId === 'nasa_night_lights' ? '#38bdf8' : '#ffffff');
           map.setPaintProperty(layer.id, 'line-opacity', 0.7);
@@ -149,7 +167,7 @@ export function applyMapPaintOverrides(map: maplibregl.Map, styleId: BasemapStyl
     }
 
     // 2. Mers, océans, lacs, cours d'eau (avec transparence pour faire apparaître le relief 3D sous-marin)
-    if (overrides.water && (id.includes('water') || id.includes('ocean') || id.includes('lake') || id.includes('river'))) {
+    if (overrides.water && (id.includes('water') || id.includes('ocean') || id.includes('lake') || id.includes('river')) && !id.startsWith('braudel-')) {
       try {
         if (layer.type === 'fill') {
           map.setPaintProperty(layer.id, 'fill-color', overrides.water);
@@ -163,7 +181,7 @@ export function applyMapPaintOverrides(map: maplibregl.Map, styleId: BasemapStyl
     }
 
     // 3. Terres, surfaces, plaines
-    if (overrides.landcover && (id.includes('land') || id.includes('earth') || id.includes('sand') || id.includes('park') || id.includes('grass') || id.includes('crop') || id.includes('wood'))) {
+    if (overrides.landcover && (id.includes('land') || id.includes('earth') || id.includes('sand') || id.includes('park') || id.includes('grass') || id.includes('crop') || id.includes('wood')) && !id.startsWith('braudel-')) {
       try {
         if (layer.type === 'fill') {
           map.setPaintProperty(layer.id, 'fill-color', overrides.landcover);
@@ -172,7 +190,7 @@ export function applyMapPaintOverrides(map: maplibregl.Map, styleId: BasemapStyl
     }
 
     // 4. Frontières et limites administratives du fond de carte
-    if (overrides.borderColor && (id.includes('admin') || id.includes('border') || id.includes('boundary')) && !id.startsWith('braudel-')) {
+    if (overrides.borderColor && (id.includes('admin') || id.includes('border') || id.includes('boundary')) && !id.startsWith('braudel-') && !id.startsWith('colonial-') && !id.startsWith('rhumb-')) {
       try {
         if (layer.type === 'line') {
           map.setPaintProperty(layer.id, 'line-color', overrides.borderColor);
@@ -200,7 +218,7 @@ export function applyLabelsVisibility(map: maplibregl.Map, visible: boolean) {
       id.includes('state') || 
       id.includes('poi');
     
-    if (isLabelOrSymbol && !id.startsWith('braudel-') && !id.startsWith('geo-reference-') && !id.startsWith('colonial-graticule-')) {
+    if (isLabelOrSymbol && !id.startsWith('braudel-') && !id.startsWith('geo-reference-') && !id.startsWith('colonial-graticule-') && !id.startsWith('rhumb-')) {
       try {
         map.setLayoutProperty(layer.id, 'visibility', visible ? 'visible' : 'none');
       } catch (e) {}
@@ -220,7 +238,7 @@ export function applyBordersVisibility(map: maplibregl.Map, visible: boolean) {
       id.includes('boundary') || 
       id.includes('country-line');
 
-    if (isBorder && !id.startsWith('braudel-') && !id.startsWith('colonial-graticule-')) {
+    if (isBorder && !id.startsWith('braudel-') && !id.startsWith('colonial-graticule-') && !id.startsWith('rhumb-') && !id.startsWith('geo-reference-')) {
       try {
         map.setLayoutProperty(layer.id, 'visibility', visible ? 'visible' : 'none');
       } catch (e) {}
@@ -246,7 +264,7 @@ export function applyRoadsVisibility(map: maplibregl.Map, visible: boolean) {
       id.includes('path') || 
       id.includes('route');
 
-    if (isRoadOrTransport && !id.startsWith('braudel-') && !id.startsWith('geo-reference-') && !id.startsWith('colonial-graticule-')) {
+    if (isRoadOrTransport && !id.startsWith('braudel-') && !id.startsWith('geo-reference-') && !id.startsWith('colonial-graticule-') && !id.startsWith('rhumb-')) {
       try {
         map.setLayoutProperty(layer.id, 'visibility', visible ? 'visible' : 'none');
       } catch (e) {}
@@ -283,6 +301,9 @@ export function applyReliefStyle(
 ) {
   const style = map.getStyle();
   if (!style || !style.layers) return;
+
+  // Clamping strict dans l'intervalle [0, 1.0] conformément à la spécification MapLibre GL
+  const clampedExaggeration = Math.min(1.0, Math.max(0, Number(exaggeration) || 0));
 
   if (worldType === 'fictional') {
     if (map.getLayer('braudel-hillshade')) {
@@ -337,7 +358,7 @@ export function applyReliefStyle(
           source: demSourceId,
           layout: { visibility: 'visible' },
           paint: {
-            'hillshade-exaggeration': exaggeration,
+            'hillshade-exaggeration': clampedExaggeration,
             'hillshade-shadow-color': shadowColor,
             'hillshade-highlight-color': highlightColor,
           },
@@ -350,7 +371,7 @@ export function applyReliefStyle(
   } else {
     try {
       map.setLayoutProperty('braudel-hillshade', 'visibility', 'visible');
-      map.setPaintProperty('braudel-hillshade', 'hillshade-exaggeration', exaggeration);
+      map.setPaintProperty('braudel-hillshade', 'hillshade-exaggeration', clampedExaggeration);
       map.setPaintProperty('braudel-hillshade', 'hillshade-shadow-color', shadowColor);
       map.setPaintProperty('braudel-hillshade', 'hillshade-highlight-color', highlightColor);
     } catch (e) {}

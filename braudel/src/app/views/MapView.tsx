@@ -102,7 +102,8 @@ export const MapView: React.FC = () => {
 
   const reliefStyle = world.styles?.find((s) => s.type === 'relief');
   const reliefProps = reliefStyle?.properties as { exaggeration?: number; shadowColor?: string; highlightColor?: string } | undefined;
-  const exaggeration = typeof reliefProps?.exaggeration === 'number' ? reliefProps.exaggeration : 0.5;
+  const rawExaggeration = typeof reliefProps?.exaggeration === 'number' ? reliefProps.exaggeration : 0.5;
+  const exaggeration = Math.min(1.0, Math.max(0, rawExaggeration));
   const shadowColor = typeof reliefProps?.shadowColor === 'string' ? reliefProps.shadowColor : '#000000';
   const highlightColor = typeof reliefProps?.highlightColor === 'string' ? reliefProps.highlightColor : '#FFFFFF';
 

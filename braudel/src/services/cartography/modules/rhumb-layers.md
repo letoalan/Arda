@@ -17,6 +17,12 @@ Gestion du rendu cartographique MapLibre pour le réseau maillé de Delaunay por
 - `rhumb-lines` : Arêtes colorées d'après le nœud source (`line-color: ['get', 'source_color']`).
 
 ## Fonctions Exportées
-- `initRhumbNetworkLayer(map, config)` : Initialise les sources GeoJSON et calques MapLibre.
-- `updateRhumbPalette(map, preset)` : Met à jour la bordure des centres selon le preset de style.
-- `toggleRhumbLines(map, visible)` : Active/désactive l'affichage du réseau de rhumbs.
+- `initRhumbNetworkLayer(map, initialVisibility, config, styleId)` : Initialise les sources GeoJSON et calques MapLibre avec la palette appropriée, insérés avant `braudel-polygons`.
+- `updateRhumbPalette(map, preset, styleId)` : Met à jour la couleur et l'opacité des arêtes (`rhumb-lines`) ainsi que la bordure des centres (`rhumb-centers`) selon le preset historique et les caractéristiques du fond de carte (sombre, satellite, ornemental).
+- `toggleRhumbLines(map, visible, styleId)` : Active ou désactive l'affichage du réseau de rhumbs avec masquage strict. Auto-répare les calques s'ils ont été supprimés par un cycle de style MapLibre.
+- Logs de diagnostic horodatés via `logCarto`.
+
+## Résolution des Blocages d'Activation & Palettes Étendues
+- **Élimination du blocage `isStyleLoaded()`** : Remplacement par `typeof map.getStyle === 'function' && !map.getStyle()`. Permet l'activation instantanée des lignes de rhumb sans attente d'un événement `style.load` qui n'était jamais émis sur les mondes fictifs ou lors des changements de styles sur Positron.
+- **Palettes et Contrastes Historiques & Fantasy** : Prise en charge explicite et rehaussée pour Peutinger (`antiquity`), Idrissi (`al_idrisi`), Portulan (`medieval`), Maior Blaeu (`renaissance`), Cassini (`modern`), Jules Verne (`jules_verne`) et les 3 univers Tolkien (High, Light, Dark).
+

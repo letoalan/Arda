@@ -28,15 +28,15 @@ export const ReliefControlsSection: React.FC<ReliefControlsSectionProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div>
         <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-          Exagération du relief ({exaggeration}x)
+          Exagération du relief ({Math.min(1.0, Math.max(0, exaggeration)).toFixed(2)}x)
         </label>
         <input 
           type="range" 
           min="0" 
-          max="3" 
-          step="0.1" 
-          value={exaggeration} 
-          onChange={(e) => onChangeExaggeration(parseFloat(e.target.value))}
+          max="1" 
+          step="0.05" 
+          value={Math.min(1.0, Math.max(0, exaggeration))} 
+          onChange={(e) => onChangeExaggeration(Math.min(1.0, Math.max(0, parseFloat(e.target.value))))}
           style={{ width: '100%' }}
         />
       </div>

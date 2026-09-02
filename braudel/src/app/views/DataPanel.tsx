@@ -10,11 +10,12 @@ import { exportMultiEpochPDF, exportTimelineDrivenPDF, exportToJPEG, exportMulti
 
 import { generateStandaloneHtml } from '../../services/export/standalone-template';
 import { exportStoryboardZIP } from '../../services/export/storyboard-export';
-import { exportStoryToWebM } from '../../services/export/video-export';
+import { exportStoryToWebM, VideoExportProgress } from '../../services/export/video-export';
 import { loadStoryFromStorage } from '../../services/export/story-export';
 import { ExportMultimediaSection } from '../components/data/ExportMultimediaSection';
 import { ExportPdfModal } from '../components/data/ExportPdfModal';
 import { ExportZipModal } from '../components/data/ExportZipModal';
+import { ExportVideoModal } from '../components/data/ExportVideoModal';
 import { GEOPOLITICA_SOURCES } from '../../services/import/geopoliticaRegistry';
 import { getCatalogTemporalEntities } from '../../services/import/geojson-catalog-service';
 import { extractActiveEpochs } from '../../services/export/pdf-timeline-utils';
@@ -52,6 +53,9 @@ export const DataPanel: React.FC = () => {
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   const [isZipModalOpen, setIsZipModalOpen] = useState(false);
   const [isZipExporting, setIsZipExporting] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isVideoExporting, setIsVideoExporting] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<VideoExportProgress | null>(null);
 
   const worldName = world.world[0]?.name || 'Monde Braudel';
 
@@ -323,64 +327,138 @@ export const DataPanel: React.FC = () => {
     }
   };
 
-  const handleWebmExport = async () => {
+  const prepareStoryForExport = () => {
     const map = mapService.getMap();
-    if (!map) return;
-    const currentBearing = map.getBearing();
-    const currentPitch = map.getPitch();
-    const currentCenter = [map.getCenter().lng, map.getCenter().lat] as [number, number];
-    const currentZoom = map.getZoom();
+    const currentBearing = map ? map.getBearing() : 0;
+    const currentPitch = map ? map.getPitch() : 0;
+    const currentCenter = map ? [map.getCenter().lng, map.getCenter().lat] as [number, number] : [2, 45] as [number, number];
+    const currentZoom = map ? map.getZoom() : 3;
 
     let story = loadStoryFromStorage(worldName);
-    // Si la story n'a que la scène par défaut, cibler automatiquement les époques actives
     if (story.scenes.length === 1 && story.scenes[0].id === 'scene-1') {
       const activeEpochs = extractActiveEpochs(world.entities, world.relations, startYear, endYear);
       const importedEpochs = activeEpochs.filter(e => e.isImportedOnMap || e.entityCount > 0);
       const epochsList = importedEpochs.length > 0 ? importedEpochs : activeEpochs;
+      const totalEpochs = epochsList.length;
 
-      if (epochsList.length > 1) {
+      if (totalEpochs > 1) {
         story = {
           ...story,
-          scenes: epochsList.map((ep, idx) => ({
-            id: `scene-epoch-${idx + 1}`,
-            title: ep.label || `Époque ${ep.year}`,
-            body: `Capture cartographique de l'époque ${ep.label || ep.year}.`,
-            mapState: {
-              center: currentCenter,
-              zoom: currentZoom,
-              bearing: currentBearing,
-              pitch: currentPitch,
-              timelineYear: ep.targetYear,
-              visibleLayerIds: []
-            },
-            layout: 'split',
-            transition: {
-              profile: 'standard',
-              durationMode: 'auto',
-              pauseAfterMs: 1200,
-              reduceMotionPolicy: 'essential-for-export'
-            }
-          }))
+          scenes: epochsList.map((ep, idx) => {
+            const yearStr = ep.year < 0 ? `${Math.abs(ep.year)} av. J.-C.` : `An ${ep.year}`;
+            const label = ep.label ? `${ep.label} (${yearStr})` : yearStr;
+            return {
+              id: `scene-epoch-${idx + 1}`,
+              periodNumber: idx + 1,
+              totalPeriods: totalEpochs,
+              title: `Période ${idx + 1}/${totalEpochs} — ${label}`,
+              body: `Capture cartographique de la période ${idx + 1} (${label}).`,
+              mapState: {
+                center: currentCenter,
+                zoom: currentZoom,
+                bearing: currentBearing,
+                pitch: currentPitch,
+                timelineYear: ep.targetYear !== undefined ? ep.targetYear : ep.year,
+                visibleLayerIds: []
+              },
+              layout: 'split',
+              transition: {
+                profile: 'standard',
+                durationMode: 'auto',
+                pauseAfterMs: 1200,
+                reduceMotionPolicy: 'essential-for-export'
+              }
+            };
+          })
         };
       } else {
-        story.scenes[0].mapState = {
-          ...story.scenes[0].mapState,
-          center: currentCenter,
-          zoom: currentZoom,
-          bearing: currentBearing,
-          pitch: currentPitch,
-          timelineYear: currentTime
+        const yearStr = currentTime < 0 ? `${Math.abs(currentTime)} av. J.-C.` : `An ${currentTime}`;
+        story.scenes[0] = {
+          ...story.scenes[0],
+          periodNumber: 1,
+          totalPeriods: 1,
+          title: `Période 1/1 — ${yearStr}`,
+          mapState: {
+            ...story.scenes[0].mapState,
+            center: currentCenter,
+            zoom: currentZoom,
+            bearing: currentBearing,
+            pitch: currentPitch,
+            timelineYear: currentTime
+          }
         };
       }
+    } else {
+      // Scénario personnalisé existant : assigner automatiquement les numéros de périodes séquentiels
+      const total = story.scenes.length;
+      story = {
+        ...story,
+        scenes: story.scenes.map((scene, idx) => {
+          const rawTitle = scene.title || `Période ${idx + 1}`;
+          const cleanTitle = rawTitle.replace(/^Période\s+\d+(\/\d+)?\s*[-—:]\s*/i, '');
+          const year = scene.mapState.timelineYear ?? currentTime;
+          const formattedYear = year < 0 ? `${Math.abs(year)} av. J.-C.` : `An ${year}`;
+          return {
+            ...scene,
+            periodNumber: idx + 1,
+            totalPeriods: total,
+            title: `Période ${idx + 1}/${total} — ${cleanTitle.startsWith('Scène') ? formattedYear : cleanTitle}`,
+            mapState: {
+              ...scene.mapState,
+              timelineYear: scene.mapState.timelineYear ?? currentTime
+            }
+          };
+        })
+      };
     }
+    return story;
+  };
 
-    setExportProgress(0);
+  const handleStartVideoExport = async (fps: number, includeLegend: boolean = true) => {
+    const map = mapService.getMap();
+    if (!map) return;
+    setIsVideoExporting(true);
+    setVideoProgress({
+      phase: 'stabilizing',
+      percent: 0,
+      generationPercent: 0,
+      encodingPercent: 0,
+      currentSceneIndex: 0,
+      totalScenes: 1,
+      elapsedMs: 0,
+      estimatedRemainingMs: 0,
+      estimatedTotalDurationMs: 0,
+      recordedBytes: 0,
+      chunkCount: 0,
+      statusMessage: 'Initialisation de l\'exportateur vidéo…'
+    });
+
+    const storyToExport = prepareStoryForExport();
+
     try {
-      await exportStoryToWebM(worldName, story, map, setCurrentTime, (pct) => setExportProgress(pct));
+      const liveWorld = useStore.getState().world;
+      await exportStoryToWebM(
+        worldName,
+        storyToExport,
+        map,
+        setCurrentTime,
+        (progress: VideoExportProgress) => setVideoProgress(progress),
+        fps,
+        {
+          entities: liveWorld.entities,
+          relations: liveWorld.relations,
+          layers: liveWorld.layers,
+          includeLegend,
+          updateEntities: (t) => {
+            const w = useStore.getState().world;
+            mapService.updateEntities(w.entities, w.relations, t, undefined, w.layers);
+          }
+        }
+      );
     } catch (e) {
       console.error('Erreur export vidéo WebM:', e);
     } finally {
-      setExportProgress(null);
+      setIsVideoExporting(false);
     }
   };
 
@@ -422,7 +500,10 @@ export const DataPanel: React.FC = () => {
         onJpegExport={handleJpegExport}
         onHtmlSimpleExport={handleHtmlSimpleExport}
         onStoryboardExport={handleStoryboardExport}
-        onWebmExport={handleWebmExport}
+        onWebmExport={() => {
+          setVideoProgress(null);
+          setIsVideoModalOpen(true);
+        }}
       />
 
       {/* Modale Dédiée : Export Atlas PDF */}
@@ -453,6 +534,23 @@ export const DataPanel: React.FC = () => {
         onConfirmSingleZip={handleConfirmSingleZip}
         onConfirmMultiZip={handleConfirmMultiZip}
         onClose={() => !isZipExporting && setIsZipModalOpen(false)}
+      />
+
+      {/* Modale Dédiée : Export Vidéo Cinématique */}
+      <ExportVideoModal
+        isOpen={isVideoModalOpen}
+        worldName={worldName}
+        story={prepareStoryForExport()}
+        canvasDimensions={(() => {
+          const liveCanvas = mapService.getMap()?.getCanvas();
+          return liveCanvas
+            ? { width: liveCanvas.width, height: liveCanvas.height }
+            : { width: 1920, height: 1080 };
+        })()}
+        isExporting={isVideoExporting}
+        videoProgress={videoProgress}
+        onStartExport={handleStartVideoExport}
+        onClose={() => !isVideoExporting && setIsVideoModalOpen(false)}
       />
     </div>
   );

@@ -61,7 +61,7 @@ export const StylePanel: React.FC = () => {
   } | undefined;
 
   const [exaggeration, setExaggeration] = useState<number>(
-    typeof reliefProps?.exaggeration === 'number' ? reliefProps.exaggeration : 0.5
+    typeof reliefProps?.exaggeration === 'number' ? Math.min(1.0, Math.max(0, reliefProps.exaggeration)) : 0.5
   );
   const [shadowColor, setShadowColor] = useState<string>(
     typeof reliefProps?.shadowColor === 'string' ? reliefProps.shadowColor : '#000000'
@@ -86,21 +86,27 @@ export const StylePanel: React.FC = () => {
         shadowColor?: string;
         highlightColor?: string;
       };
-      if (typeof props.exaggeration === 'number') setExaggeration(props.exaggeration);
+      if (typeof props.exaggeration === 'number') setExaggeration(Math.min(1.0, Math.max(0, props.exaggeration)));
       if (typeof props.shadowColor === 'string') setShadowColor(props.shadowColor);
       if (typeof props.highlightColor === 'string') setHighlightColor(props.highlightColor);
     }
   }, [reliefStyle]);
 
   const applyChanges = () => {
-    updateReliefStyle(exaggeration, shadowColor, highlightColor);
+    updateReliefStyle(Math.min(1.0, Math.max(0, exaggeration)), shadowColor, highlightColor);
   };
 
   const applyPreset = (preset: 'soft' | 'dramatic') => {
     if (preset === 'soft') {
+      setExaggeration(0.3);
+      setShadowColor('#333333');
+      setHighlightColor('#ffffff');
       updateReliefStyle(0.3, '#333333', '#ffffff');
     } else {
-      updateReliefStyle(1.5, '#000000', '#ffebcd');
+      setExaggeration(0.95);
+      setShadowColor('#000000');
+      setHighlightColor('#ffebcd');
+      updateReliefStyle(0.95, '#000000', '#ffebcd');
     }
   };
 

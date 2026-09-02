@@ -96,7 +96,7 @@ export const FANTASY_STYLE_CONFIGS: StyleConfig[] = [
       borderWidth: 8,
     },
     rhumbLines: {
-      enabled: true,
+      enabled: false,
       centers: [[0, 0], [45, -20]],
       rayCount: 16,
       colors: ['#5C3A21', '#8B0000', '#2E8B57'],

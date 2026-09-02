@@ -1,11 +1,20 @@
 // app/state/storeUiActions.ts
 
 import { BasemapStyleId } from '../../core/styles.config';
+import { getBasemapFeatureDefaults } from '../../core/styles/styleFeatureDefaults';
 import { ViewMode } from './storeTypes';
 
 export function createUiSlice(set: any) {
   return {
-    setBasemapStyle: (style: BasemapStyleId) => set({ basemapStyle: style }),
+    setBasemapStyle: (style: BasemapStyleId) => {
+      const defaults = getBasemapFeatureDefaults(style);
+      set({
+        basemapStyle: style,
+        portulanRhumbVisible: defaults.portulanRhumbVisible,
+        graticuleVisible: defaults.graticuleVisible,
+        basemapBordersVisible: defaults.bordersVisible,
+      });
+    },
     setBasemapLabelsVisible: (visible: boolean) => set({ basemapLabelsVisible: visible }),
     setBasemapBordersVisible: (visible: boolean) => set({ basemapBordersVisible: visible }),
     setBasemapRoadsVisible: (visible: boolean) => set({ basemapRoadsVisible: visible }),

@@ -4,15 +4,17 @@ import maplibregl from 'maplibre-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 
 import { MapEventEmitter, EntityClickCallback, EditEntityCallback, DrawCompleteCallback } from './mapEvents';
-import { applyBasemapStyle, applyLabelsVisibility, applyBordersVisibility, applyRoadsVisibility, applyRiversVisibility, applyReliefStyle, applyMapPaintOverrides } from './mapStylesManager';
+import { applyBasemapStyle, applyLabelsVisibility, applyBordersVisibility, applyRoadsVisibility, applyRiversVisibility, applyReliefStyle, applyMapPaintOverrides, setActiveStyleUrl, resetActiveStyleUrl } from './mapStylesManager';
 import { buildEntitiesGeoJSON, updateMapSourceData } from './mapGeojsonRenderer';
 import { setupVectorLayers } from './mapLayersManager';
 import { createMapLibreDrawInstance, enableDrawingModeOnMap } from './mapDrawingService';
 
-import { toggleGeoReferenceLines, toggleGraticuleGrid } from './modules/grid-reference-layers';
+import { toggleGeoReferenceLines, toggleGraticuleGrid, updateGraticuleStyle } from './modules/grid-reference-layers';
 import { toggleRhumbLines, updateRhumbPalette } from './modules/rhumb-layers';
 import { setupClimateLayers, updateIceCapsLayer, updateSeaLevelLayer } from './modules/climate-layers';
 import { STYLE_CONFIGS } from '../../core/styles.config';
+import { getBasemapFeatureDefaults } from '../../core/styles/styleFeatureDefaults';
+import { logCarto, logCartoWarn } from './modules/carto-logger';
 import { buildDEMGrid, renderDEMTileAsync } from './syntheticDemTileServer';
 
 function buildOceanMaskGeoJSON(geojson: any) {
@@ -70,14 +72,15 @@ export class MapService {
   private lastRoadsVisible: boolean = true;
   private lastRiversVisible: boolean = true;
   private lastGeoRefVisible: boolean = true;
-  private lastPortulanRhumbVisible: boolean = true;
-  private lastGraticuleVisible: boolean = true;
+  private lastPortulanRhumbVisible: boolean = false;
+  private lastGraticuleVisible: boolean = false;
   private lastProjection: 'mercator' | 'globe' = 'mercator';
   private lastReliefParams: { exaggeration: number; shadowColor: string; highlightColor: string } | null = { exaggeration: 0.5, shadowColor: '#000000', highlightColor: '#FFFFFF' };
   private lastEntitiesArgs: { entities: any[]; relations: any[]; currentTime: number; proposal?: any; layers?: any[]; epochRange?: { validFrom?: number; validTo?: number } } | null = null;
   private lastClimateParams: { iceCapLatitude: number; iceCapVisible: boolean; seaLevelMeters: number; seaLevelVisible: boolean } | null = null;
   private lastContinentsData: any = null;
   private worldType: 'real' | 'fictional' = 'real';
+  private isStyleInitialized: boolean = false;
 
   initialize(container: HTMLElement, worldType: 'real' | 'fictional' = 'real', continentsData?: any, styleConfig?: any, initialStyleId?: string) {
     if (this.map) this.cleanup();
@@ -115,19 +118,47 @@ export class MapService {
       preserveDrawingBuffer: true,
     } as any);
 
+    this.isStyleInitialized = true;
+    if (typeof defaultStyle === 'string') {
+      setActiveStyleUrl(defaultStyle);
+    }
+
+    // Gestionnaire de récupération résilient en cas de perte de contexte WebGL
+    try {
+      const canvas = this.map.getCanvas();
+      if (canvas) {
+        canvas.addEventListener('webglcontextlost', (event: Event) => {
+          logCartoWarn('WEBGL_CONTEXT_LOST', 'Événement webglcontextlost intercepté. Préservation du canevas...');
+          event.preventDefault();
+        });
+        canvas.addEventListener('webglcontextrestored', () => {
+          logCarto('WEBGL_CONTEXT_RESTORED', 'Événement webglcontextrestored intercepté. Réapplication automatique des calques...');
+          applyAllCustomLayers();
+        });
+      }
+    } catch (e) {}
+
     this.draw = createMapLibreDrawInstance();
     this.map.addControl(this.draw as any, 'top-right');
 
+    let isApplyingCustomLayers = false;
     const applyAllCustomLayers = () => {
-      if (!this.map) return;
-      // For inline styles (fictional worlds), isStyleLoaded() may return false
-      // even though the style is fully available. Retry with a short delay.
-      if (!this.map.isStyleLoaded()) {
-        setTimeout(() => applyAllCustomLayers(), 50);
+      if (!this.map || isApplyingCustomLayers) return;
+      // For inline styles (fictional worlds) or already loaded styles, check getStyle()
+      if (!this.map.getStyle()) {
+        logCarto('APPLY_LAYERS_WAIT_STYLE', 'Attente de chargement complet du style...');
+        this.map.once('styledata', () => applyAllCustomLayers());
         return;
       }
+      isApplyingCustomLayers = true;
+      logCarto('APPLY_ALL_CUSTOM_LAYERS_START', { 
+        styleId: this.currentStyleId, 
+        rhumbVisible: this.lastPortulanRhumbVisible, 
+        graticuleVisible: this.lastGraticuleVisible,
+        bordersVisible: this.lastBordersVisible 
+      });
       try {
-        setupVectorLayers(this.map, this.lastPortulanRhumbVisible, this.lastGraticuleVisible);
+        setupVectorLayers(this.map, this.lastPortulanRhumbVisible, this.lastGraticuleVisible, this.currentStyleId);
         if (this.currentStyleId) {
           applyMapPaintOverrides(this.map, this.currentStyleId);
         }
@@ -136,9 +167,12 @@ export class MapService {
         applyRoadsVisibility(this.map, this.lastRoadsVisible);
         applyRiversVisibility(this.map, this.lastRiversVisible);
         toggleGeoReferenceLines(this.map, this.lastGeoRefVisible && this.worldType === 'real');
-        toggleRhumbLines(this.map, this.lastPortulanRhumbVisible);
-        toggleGraticuleGrid(this.map, this.lastGraticuleVisible);
-        updateRhumbPalette(this.map, (this.currentStyleId as any) || 'renaissance');
+        toggleRhumbLines(this.map, this.lastPortulanRhumbVisible, this.currentStyleId);
+        toggleGraticuleGrid(this.map, this.lastGraticuleVisible, this.currentStyleId);
+        if (this.currentStyleId) {
+          updateGraticuleStyle(this.map, this.currentStyleId);
+        }
+        updateRhumbPalette(this.map, (this.currentStyleId as any) || 'renaissance', this.currentStyleId);
         setupClimateLayers(this.map);
         if (this.lastClimateParams) {
           updateIceCapsLayer(this.map, this.lastClimateParams.iceCapLatitude, this.lastClimateParams.iceCapVisible);
@@ -156,7 +190,8 @@ export class MapService {
         }
 
         if (this.lastReliefParams) {
-          applyReliefStyle(this.map, this.lastReliefParams.exaggeration, this.lastReliefParams.shadowColor, this.lastReliefParams.highlightColor, this.worldType);
+          const clamped = Math.min(1.0, Math.max(0, Number(this.lastReliefParams.exaggeration) || 0));
+          applyReliefStyle(this.map, clamped, this.lastReliefParams.shadowColor, this.lastReliefParams.highlightColor, this.worldType);
         }
         if (this.lastEntitiesArgs) {
           this.updateEntities(
@@ -172,6 +207,8 @@ export class MapService {
         }
       } catch (err) {
         console.warn('Error applying custom map layers:', err);
+      } finally {
+        isApplyingCustomLayers = false;
       }
     };
 
@@ -180,8 +217,6 @@ export class MapService {
     });
 
     this.map.on('style.load', applyAllCustomLayers);
-    this.map.on('styledata', applyAllCustomLayers);
-    this.map.on('idle', applyAllCustomLayers);
 
     this.map.on('click', (e) => {
       if (this.drawingEntityId) return;
@@ -259,8 +294,28 @@ export class MapService {
   }
 
   setBasemapStyle(styleId: any) {
-    if (this.currentStyleId === styleId && this.map?.getStyle()) return;
+    if (this.currentStyleId === styleId && this.isStyleInitialized) {
+      // Style déjà actif ou en cours de chargement initial : ne pas recharger le style WebGL
+      toggleRhumbLines(this.map, this.lastPortulanRhumbVisible, styleId);
+      toggleGraticuleGrid(this.map, this.lastGraticuleVisible, styleId);
+      return;
+    }
     this.currentStyleId = styleId;
+    this.isStyleInitialized = true;
+
+    // Harmoniser immédiatement les visibilités avec les defaults du style choisi
+    const defaults = getBasemapFeatureDefaults(styleId);
+    this.lastPortulanRhumbVisible = defaults.portulanRhumbVisible;
+    this.lastGraticuleVisible = defaults.graticuleVisible;
+    this.lastBordersVisible = defaults.bordersVisible;
+
+    logCarto('SET_BASEMAP_STYLE', { 
+      styleId, 
+      defaults, 
+      worldType: this.worldType, 
+      isStyleLoaded: this.map?.isStyleLoaded() 
+    });
+
     if (this.map) {
       if (this.worldType === 'fictional') {
         const config = STYLE_CONFIGS.find(s => s.id === styleId) || STYLE_CONFIGS.find(s => s.id === 'tolkien_high_fantasy');
@@ -295,15 +350,16 @@ export class MapService {
             this.map.setPaintProperty('braudel-synth-hillshade', 'hillshade-highlight-color', highlight);
           }
         } catch (e) {
-          console.warn('Error updating fictional basemap paints:', e);
+          logCartoWarn('FICTIONAL_PAINT_WARN', 'Avertissement mise à jour peintures monde fictif:', e);
         }
       } else {
         applyBasemapStyle(this.map, styleId);
         applyMapPaintOverrides(this.map, styleId);
       }
-      toggleRhumbLines(this.map, this.lastPortulanRhumbVisible);
-      toggleGraticuleGrid(this.map, this.lastGraticuleVisible);
-      updateRhumbPalette(this.map, (styleId as any) || 'renaissance');
+      toggleRhumbLines(this.map, this.lastPortulanRhumbVisible, styleId);
+      toggleGraticuleGrid(this.map, this.lastGraticuleVisible, styleId);
+      updateGraticuleStyle(this.map, styleId);
+      updateRhumbPalette(this.map, (styleId as any) || 'renaissance', styleId);
       if (this.lastClimateParams) {
         updateSeaLevelLayer(this.map, this.lastClimateParams.seaLevelMeters, this.lastClimateParams.seaLevelVisible, styleId);
       }
@@ -337,12 +393,14 @@ export class MapService {
 
   setPortulanRhumbVisible(visible: boolean) {
     this.lastPortulanRhumbVisible = visible;
-    if (this.map) toggleRhumbLines(this.map, visible);
+    logCarto('SET_PORTULAN_RHUMB_VISIBLE', { visible, styleId: this.currentStyleId });
+    if (this.map) toggleRhumbLines(this.map, visible, this.currentStyleId);
   }
 
   setGraticuleVisible(visible: boolean) {
     this.lastGraticuleVisible = visible;
-    if (this.map) toggleGraticuleGrid(this.map, visible);
+    logCarto('SET_GRATICULE_VISIBLE', { visible, styleId: this.currentStyleId });
+    if (this.map) toggleGraticuleGrid(this.map, visible, this.currentStyleId);
   }
 
   setProjection(projectionType: 'mercator' | 'globe') {
@@ -363,10 +421,11 @@ export class MapService {
   }
 
   setReliefStyle(exaggeration: number = 0.5, shadowColor: string = '#000000', highlightColor: string = '#FFFFFF') {
-    this.lastReliefParams = { exaggeration, shadowColor, highlightColor };
+    const clamped = Math.min(1.0, Math.max(0, Number(exaggeration) || 0));
+    this.lastReliefParams = { exaggeration: clamped, shadowColor, highlightColor };
     if (this.map && this.map.isStyleLoaded()) {
       try {
-        applyReliefStyle(this.map, exaggeration, shadowColor, highlightColor, this.worldType);
+        applyReliefStyle(this.map, clamped, shadowColor, highlightColor, this.worldType);
       } catch (e) {
         console.warn('Error applying relief style:', e);
       }
@@ -430,6 +489,10 @@ export class MapService {
         (this.map.getSource('braudel-ocean-mask') as maplibregl.GeoJSONSource).setData(oceanMask as any);
       } else {
         this.map.addSource('braudel-ocean-mask', { type: 'geojson', data: oceanMask as any });
+        const beforeLayer = this.map.getLayer('rhumb-lines') ? 'rhumb-lines' 
+          : (this.map.getLayer('colonial-graticule-lines') ? 'colonial-graticule-lines' 
+          : (this.map.getLayer('braudel-polygons') ? 'braudel-polygons' : undefined));
+
         this.map.addLayer({
           id: 'braudel-ocean-mask',
           type: 'fill',
@@ -438,7 +501,7 @@ export class MapService {
             'fill-color': oceanColor,
             'fill-opacity': 1.0,
           },
-        });
+        }, beforeLayer);
       }
 
       // 3. Continents & Terres
@@ -446,6 +509,9 @@ export class MapService {
         (this.map.getSource('braudel-continents') as maplibregl.GeoJSONSource).setData(geojson);
       } else {
         this.map.addSource('braudel-continents', { type: 'geojson', data: geojson });
+        const beforeLayer = this.map.getLayer('rhumb-lines') ? 'rhumb-lines' 
+          : (this.map.getLayer('colonial-graticule-lines') ? 'colonial-graticule-lines' 
+          : (this.map.getLayer('braudel-polygons') ? 'braudel-polygons' : undefined));
 
         // Fond continental — teinte hypsométrique riche du thème (posée au-dessus du relief pour le draper)
         this.map.addLayer({
@@ -457,7 +523,7 @@ export class MapService {
             'fill-color': landColor,
             'fill-opacity': 0.65,
           },
-        });
+        }, beforeLayer);
 
         // Trait de côte net et contrasté
         this.map.addLayer({
@@ -470,7 +536,7 @@ export class MapService {
             'line-width': 2.0,
             'line-opacity': 0.9,
           },
-        });
+        }, beforeLayer);
       }
     } catch (e) {
       console.warn('Error rendering continents:', e);
@@ -542,9 +608,13 @@ export class MapService {
   cleanup() {
     this.emitter.clearAll();
     if (this.map) {
-      this.map.remove();
+      try {
+        this.map.remove();
+      } catch (e) {}
       this.map = null;
     }
+    this.isStyleInitialized = false;
+    resetActiveStyleUrl();
     this.draw = null;
     this.drawingEntityId = null;
   }

@@ -1,19 +1,26 @@
 import maplibregl from 'maplibre-gl';
 import { 
-  initGridLayer, 
   initGeoReferenceLinesLayer, 
   initColonialGraticuleLayer 
 } from './modules/grid-reference-layers';
 import { initRhumbNetworkLayer } from './modules/rhumb-layers';
+import { BasemapStyleId } from '../../core/styles.config';
+import { logCarto } from './modules/carto-logger';
 
-export function setupVectorLayers(map: maplibregl.Map, portulanRhumbVisible: boolean = true, graticuleVisible: boolean = true) {
+export function setupVectorLayers(
+  map: maplibregl.Map, 
+  portulanRhumbVisible: boolean = false, 
+  graticuleVisible: boolean = false,
+  styleId?: BasemapStyleId
+) {
+  logCarto('SETUP_VECTOR_LAYERS_START', { portulanRhumbVisible, graticuleVisible, styleId });
+
   // 0. Initialiser la couche d'ornementation cartographique (Lignes de rhumb & Portulan)
-  initRhumbNetworkLayer(map, portulanRhumbVisible);
+  initRhumbNetworkLayer(map, portulanRhumbVisible, undefined, styleId);
 
   // 1. Initialiser les lignes de repères géographiques (Équateur, Tropiques, Cercles polaires)
   initGeoReferenceLinesLayer(map);
-  initGridLayer(map);
-  initColonialGraticuleLayer(map, graticuleVisible);
+  initColonialGraticuleLayer(map, graticuleVisible, styleId);
 
   // 2. Initialiser les calques vectoriels d'entités Braudel
   if (!map.getSource('braudel-entities')) {

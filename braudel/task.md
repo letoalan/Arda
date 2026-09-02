@@ -58,14 +58,104 @@
   - [x] Documentation des fonctionnalités cartographiques (transitions caméras, bearing Al-Idrisi, synchronisation temporelle, pauses)
   - [x] Matrice comparative (Vidéo WebM vs Collection JPEG ZIP vs Atlas PDF) et compatibilité logiciels de montage
   - [x] Mise à jour des index Wiki-as-Code (`export.md`, `video-export.md`)
-- [x] **Correctif Vidéo : Négociation dynamique de codec & Fallback MediaRecorder**
-  - [x] Fonction `getSupportedVideoMimeType` testant VP9, VP8, H.264, WebM, MP4 pour éviter `DOMException: unsupported codec`
-  - [x] Repli automatique sur le constructeur par défaut `new MediaRecorder(stream)` si aucun type spécifique n'est accepté
-  - [x] Synchronisation automatique de la caméra et des époques dans `handleWebmExport` (`DataPanel.tsx`)
-
-
-
-
-
-
+- [x] **Évolution Vidéo : Double Compteur Connecté en Continu à l'Algorithme de Saisie et de Traitement**
+  - [x] Fonction `estimateVideoDuration` calculant à l'avance la durée totale estimée et le nombre de plans (`video-export.ts`)
+  - [x] Ticker haute-fréquence (100ms) connecté en continu à la saisie cartographique (chronomètre continu, débit Mbps, chunks, sous-étapes réelles)
+  - [x] Correction Compteur 2 : Encodage GPU synchronisé dès la 1ère tranche (1% → 90%) au lieu de rester figé à 0% pendant la capture
+  - [x] Assemblage final post-capture fluide (90% → 100%) sans discontinuité
+  - [x] Interface `ExportVideoModal.tsx` 100% active (suppression opacité 0.65, badges d'état GPU, affichage fragments)
+  - [x] Documentation Wiki-as-Code (`video.md`, `ExportVideoModal.md`)
+  - [x] Validation TypeScript et tests Vitest à 100% (165/165 passants)
+- [x] **Correctif Robustesse Vidéo : Élimination du Blocage à 80% (Post-Traitement & Finalisation)**
+  - [x] Correction Race Condition : Attachement préalable des écouteurs `recorder.onstop` et `recorder.onerror` AVANT l'appel à `recorder.stop()`
+  - [x] Ajout d'un timer garde-fou de sécurité pour garantir la résolution inconditionnelle de la promesse de finalisation
+  - [x] Remplacement du repaint synchrone par un **Canvas 2D Relais Offscreen** synchronisé sur `requestAnimationFrame`
+  - [x] Éradication définitive de l'erreur `WebGL context was lost` et garantie d'un flux vidéo complet et volumineux
+  - [x] Arrêt explicite des pistes média (`MediaStreamTrack.stop()`) pour libérer les ressources GPU à l'issue de l'export
+- [x] **Fiabilisation Vidéo : Résolution définitive du fichier 0 Ko (7 étapes implementation-video.md)**
+  - [x] Étape 1 : Instrumentation de diagnostic — Logs horodatés `[Video Export]` à chaque étape critique du pipeline
+  - [x] Étape 2 : Garde-fou dimensions du canevas — `waitForCanvasReady()` bloquant + validation piste `readyState` + vérification première frame peinte
+  - [x] Étape 3 : Validation post-assemblage du Blob — Rejet si `blob.size < MIN_VALID_BLOB_SIZE (1024)`, aucun fichier corrompu téléchargé
+  - [x] Étape 4 : Timer de sécurité proportionnel `min(15s, max(3s, durée×0.5))` + délai 200ms post-`requestData()`
+  - [x] Étape 5 : Vérification robuste codec réel — `verifyCodecSupport()` (mini-enregistrement 300ms canvas 64×64) + cascade `getVerifiedMimeType()`
+  - [x] Étape 6 : Tests de régression ciblés — 8 nouveaux cas (scène courte, CODEC_CASCADE, seuil Blob, JSDOM sans MediaRecorder)
+  - [x] Étape 7 : Retour utilisateur explicite — Modale d'erreur rouge avec `AlertTriangle`, message détaillé et bouton « Réessayer (FPS réduit) »
+  - [x] Documentation Wiki-as-Code (`video-export.md`, `video.md`, `ExportVideoModal.md`)
+- [x] **Correctif Critique : Éradication de l'écran noir de la vidéo exportée**
+  - [x] Diagnostic de la taille anormale (~600 Ko pour 22 scènes) et de l'écran uni (#1e293b)
+  - [x] Rattachement obligatoire du `recordCanvas` au `document.body` (offscreen) pour activation du compositeur Chromium/Blink
+  - [x] Hook synchrone `map.on('render')` pour capturer les pixels WebGL avant le swap/clear de buffer
+  - [x] Notification forcée de trame via `videoTrack.requestFrame()` à chaque frame copiée
+  - [x] Repaint initial `map.triggerRepaint()` et attente bloquante `framesCopied > 0`
+  - [x] Démontage propre de l'élément DOM et des écouteurs dans `finally`
+  - [x] Documentation Wiki-as-Code mise à jour (`video.md`, `video-export.md`)
+  - [x] Validation TypeScript et Vitest (173/173 tests passants)
+- [x] **Ordonnancement Périodes & Algorithme de Vérification de Capture des Entités**
+  - [x] Assignation automatique séquentielle des numéros de périodes dans la timeline (`Période 1/N — Label`, `Période 2/N`, ...)
+  - [x] Extension du schéma `StorySceneSchema` avec `periodNumber` et `totalPeriods` typés
+  - [x] Synchronisation synchrone des entités à chaque période via callback `updateEntities` éliminant la latence React
+  - [x] Algorithme `verifyAndCapturePeriodEntities` : sonde `queryRenderedFeatures` / `braudel-entities` pour certifier la présence GPU
+  - [x] Garantie de capture de quota de trames avec les entités affichées avant passage à la période suivante
+  - [x] Interface utilisateur `ExportVideoModal` : aperçu séquencé des périodes et badge télémétrique d'entités vérifiées en direct
+  - [x] Tests unitaires et d'intégration validés (175/175 passants)
+  - [x] Documentation Wiki-as-Code mise à jour (`story.md`, `video-export.md`, `ExportVideoModal.md`, `video.md`)
+- [x] **Hotfix : Résolution de l'erreur MapLibre `hillshade-exaggeration > 1` & Boucle infinie**
+  - [x] Clamping strict de `exaggeration` dans l'intervalle `[0, 1.0]` dans `mapStylesManager.ts` (`applyReliefStyle`)
+  - [x] Clamping dans `map-service.ts` (`setReliefStyle`, `applyAllCustomLayers`)
+  - [x] Clamping dans `MapView.tsx`, `StylePanel.tsx`, `store.ts` et recalibrage du preset « Dramatique » à 0.95
+  - [x] Bornage du curseur `ReliefControlsSection.tsx` de 0 à 1 (pas de 0.05)
+  - [x] Suppression des écouteurs récursifs `'styledata'` et `'idle'` dans `map-service.ts` et ajout d'un verrou anti-réentrance `isApplyingCustomLayers`
+  - [x] Documentation Wiki-as-Code (`mapStylesManager.md`, `ReliefControlsSection.md`)
+  - [x] Validation TypeScript et Vitest (175/175 tests passants)
+- [x] **Incrustation Cinématique de la Légende Cartographique Vidéo**
+  - [x] Fonction `drawRoundedRect` (tracé géométrique cross-platform de boîtes arrondies Canvas 2D)
+  - [x] Fonction `drawVideoLegend` : cartouche cinématique translucide (badge période, année, titre, décompte et pastilles colorées d'entités)
+  - [x] Échelle relative responsive calculée sur le format Full HD 1080p natif
+  - [x] Intégration dans `copyCurrentFrame` du compositeur 2D et mise à jour dynamique `updateLegendForPeriod` par scène
+  - [x] Contrôle interactif utilisateur dans `ExportVideoModal.tsx` (toggle incrustation de la légende)
+  - [x] Transmission de l'option `includeLegend` via `DataPanel.tsx` et `video-export.ts`
+  - [x] Tests unitaires dédiés validés dans `story-export.test.ts` (178/178 tests passants)
+  - [x] Documentation Wiki-as-Code (`video.md`, `video-export.md`, `ExportVideoModal.md`)
+  - [x] **Éradication des rémanences / superpositions de légendes d'époques antérieures**
+    - [x] Création du buffer 2D dédié `cleanMapCanvas` pour stocker la carte pure sans aucun texte
+    - [x] Remplacement de `copyCurrentFrame` par `composeVideoFrame` réécrasant 100% de la surface avant le tracé de la légende
+    - [x] Élimination totale de l'effet d'escalier / fantômes de boîtes plus grandes lors des changements d'époques
+    - [x] Nettoyage garanti de `cleanMapCanvas` dans `finally`
+- [x] **Harmonisation Graticules & Lignes de Rhumb (25 Fonds de Carte & Débrayage Menu)**
+  - [x] Module `styleFeatureDefaults.ts` avec `getBasemapFeatureDefaults` & `getGraticuleStyleForBasemap`
+  - [x] Synchronisation automatique des valeurs par défaut dans le store (`setBasemapStyle`)
+  - [x] Adaptation dynamique des palettes graticule dans `grid-reference-layers.ts` (`updateGraticuleStyle`)
+  - [x] Suppression du carroyage fantôme 30° `grid-layer` de `toggleGeoReferenceLines`
+  - [x] Adaptation dynamique de la palette rhumb dans `rhumb-layers.ts` (`updateRhumbPalette`)
+  - [x] Correction de l'ordre d'empilement sur mondes Tolkien (`braudel-ocean-mask` avant les calques de rhumb)
+  - [x] Tests automatisés (`basemap-features.test.ts`) et validation TypeScript/Vitest (187/187 passants)
+  - [x] Documentation technique Wiki-as-Code (`.md`)
+- [x] **Stabilisation des Tuiles Vectorielles, Graticules & Rhumbs et Traçabilité par Logs**
+  - [x] Module centralisé de logs `carto-logger.ts` (`logCarto`, `logCartoWarn`) avec timestamps
+  - [x] Auto-réparation des calques orphelins dans `toggleGraticuleGrid` et `toggleRhumbLines`
+  - [x] Positionnement rigoureux Z-Index via `beforeId: 'braudel-polygons'`
+  - [x] Immunité des repères cartographiques dans `mapStylesManager.ts`
+  - [x] Synchronisation synchrone des états de visibilité par défaut dans `mapService.setBasemapStyle`
+  - [x] Audit complet consigné dans `audi-export-vd.md` (Section 7)
+  - [x] Tests unitaires dédiés (190/190 passants sur 29 fichiers de tests)
+  - [x] Documentation Wiki-as-Code synchronisée (`carto-logger.md`, `mapLayersManager.md`, `map-service.md`, `mapStylesManager.md`, `basemap-features.test.md`)
+- [x] **Désactivation Intégrale par Défaut (Rhumb & Graticule) & Robustesse Coche/Décoche 2D/3D**
+  - [x] Remise à zéro de tous les defaults de styles (`portulanRhumbVisible: false`, `graticuleVisible: false`)
+  - [x] Mise à jour des configurations individuelles dans `realStylesHistorical.ts`, `realStylesContemporary.ts`, `fantasyStyles.ts`
+  - [x] Alignement des paramètres par défaut de `setupVectorLayers` (`false`, `false`)
+  - [x] Forçage de `triggerRepaint` et réalignement palette lors de chaque bascule dans `toggleGraticuleGrid` et `toggleRhumbLines`
+  - [x] Test unitaire validant 5 cycles consécutifs de coche/décoche 2D/3D (191/191 tests passants)
+  - [x] Documentation Wiki-as-Code synchronisée (`styleFeatureDefaults.md`, `basemap-features.test.md`)
+- [x] **Résolution Définitive des Pertes de Contexte WebGL (`webglcontextlost`)**
+  - [x] Verrou `isStyleInitialized` pour éliminer le double appel concurrent `setBasemapStyle` au montage
+  - [x] Déduplication `activeStyleUrl` pour réutiliser le pipeline WebGL sans rechargement destructif
+  - [x] Interception résiliente de `webglcontextlost` (`event.preventDefault()`) et restauration automatique sur `webglcontextrestored`
+  - [x] Documentation Wiki-as-Code synchronisée (`map-service.md`, `mapStylesManager.md`)
+- [x] **Activation Fiabilisée des Repères sur Styles Historiques & Fantasy (Peutinger, Idrissi, Portulan, Maior Blaeu, Cassini, Verne, Tolkien)**
+  - [x] Remplacement des gardes bloquants `isStyleLoaded()` par `typeof map.getStyle === 'function' && !map.getStyle()`
+  - [x] Déblocage immédiat des styles inline (mondes Tolkien) et des réutilisations d'URL Positron
+  - [x] Palettes de graticule enrichies pour `medieval` (#7a4a20) et `renaissance` (#855a2a) et renfort des opacités
+  - [x] Palettes de rhumbs adaptées aux parchemins (#8b5a2b, #7a3e1d) et aux univers Tolkien (#b8860b, #ef4444)
+  - [x] Validation intégrale Vitest (191/191 tests passants) et TypeScript (0 erreur)
+  - [x] Documentation Wiki-as-Code synchronisée (`grid-reference-layers.md`, `rhumb-layers.md`, `styleFeatureDefaults.md`, `basemap-features.test.md`, `audi-export-vd.md`)
 

@@ -1,6 +1,10 @@
 // app/state/appStateDefaults.ts
 
 import { emptyWorld } from './slices/worldSlice';
+import { getBasemapFeatureDefaults } from '../../core/styles/styleFeatureDefaults';
+
+const defaultBasemapStyle = 'contemporary_current' as const;
+const defaultFeatures = getBasemapFeatureDefaults(defaultBasemapStyle);
 
 export const initialAppState = {
   world: emptyWorld,
@@ -9,14 +13,14 @@ export const initialAppState = {
   isFirstLoadDone: false,
   selectedEntityId: null,
   wikiModalEntityId: null,
-  basemapStyle: 'contemporary_current' as const,
+  basemapStyle: defaultBasemapStyle,
   basemapLabelsVisible: true,
-  basemapBordersVisible: true,
+  basemapBordersVisible: defaultFeatures.bordersVisible,
   basemapRoadsVisible: true,
   basemapRiversVisible: true,
   geoReferenceLinesVisible: true,
-  portulanRhumbVisible: true,
-  graticuleVisible: true,
+  portulanRhumbVisible: defaultFeatures.portulanRhumbVisible,
+  graticuleVisible: defaultFeatures.graticuleVisible,
   mapProjection: 'mercator' as const,
   activeEmpire: 'all' as const,
   currentTime: -3000,
