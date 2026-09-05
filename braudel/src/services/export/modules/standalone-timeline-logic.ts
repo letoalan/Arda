@@ -10,6 +10,17 @@ export function getStandaloneTimelineScript(): string {
       return '#EC4899';                     // Époque Contemporaine (Rose/Magenta)
     }
 
+    function resolveDocBearing(explicitBearing) {
+      const isAlIdrisi = (doc.map && (doc.map.styleId === 'al_idrisi' || (typeof doc.map.styleId === 'string' && doc.map.styleId.indexOf('idrisi') !== -1) || (doc.map.styleUrl && doc.map.styleUrl.indexOf('idrisi') !== -1)));
+      if (isAlIdrisi) {
+        if (explicitBearing === undefined || explicitBearing === null || explicitBearing === 0) {
+          return 180;
+        }
+        return explicitBearing;
+      }
+      return explicitBearing || 0;
+    }
+
     function initTimeline() {
       const slider = document.getElementById('timeline-slider');
       const track = document.getElementById('timeline-track');
@@ -481,11 +492,11 @@ export function getStandaloneTimelineScript(): string {
           center: cam.center,
           zoom: cam.zoom ?? 4,
           pitch: cam.pitch || 0,
-          bearing: cam.bearing || 0,
+          bearing: resolveDocBearing(cam.bearing),
           duration: 2000
         });
       } else if (cam.center) {
-        map.jumpTo({ center: cam.center, zoom: cam.zoom ?? 4, pitch: cam.pitch || 0, bearing: cam.bearing || 0 });
+        map.jumpTo({ center: cam.center, zoom: cam.zoom ?? 4, pitch: cam.pitch || 0, bearing: resolveDocBearing(cam.bearing) });
       }
 
       updateTemporalFilter(wp.year);
@@ -701,7 +712,7 @@ export function getStandaloneTimelineScript(): string {
                     center: cam.center,
                     zoom: cam.zoom ?? 4,
                     pitch: cam.pitch || 0,
-                    bearing: cam.bearing || 0,
+                    bearing: resolveDocBearing(cam.bearing),
                     duration: 800,
                     essential: true
                   });
@@ -822,7 +833,7 @@ export function getStandaloneTimelineScript(): string {
           center: action.viewpoint.center,
           zoom: action.viewpoint.zoom ?? (map.getZoom() + 1.5),
           pitch: action.viewpoint.pitch || 0,
-          bearing: action.viewpoint.bearing || 0,
+          bearing: resolveDocBearing(action.viewpoint.bearing),
           duration: 650
         });
       }
@@ -864,7 +875,7 @@ export function getStandaloneTimelineScript(): string {
               center: wp.cameraState.center,
               zoom: wp.cameraState.zoom ?? 4,
               pitch: wp.cameraState.pitch || 0,
-              bearing: wp.cameraState.bearing || 0,
+              bearing: resolveDocBearing(wp.cameraState.bearing),
               duration: 500
             });
           }

@@ -8,6 +8,7 @@ Section présentant l'ensemble des boutons de déclenchement des exports cartogr
 - **HTML Autonome** : Exportation de l'application interactive Bento autonome.
 - **Storyboard Pack** : Exportation du dossier de récit (visuels JPEG HD, story.json, script.md, credits.md), ciblant automatiquement les époques du monde.
 - **Vidéo WebM** : Enregistrement vidéo animé continu des transitions de scènes (VP9 30fps).
+- **Studio Vidéo & Audio (CapCut-like)** : Éditeur plein écran de montage multi-pistes (durées personnalisées des périodes, ajout de musique/voix off avec waveforms).
 
 ## Emplacement
 `src/app/components/data/ExportMultimediaSection.tsx`

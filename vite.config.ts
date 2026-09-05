@@ -30,6 +30,18 @@ function serveDataMiddleware(req: any, res: any, next: any) {
 export default defineConfig({
   base: process.env.BASE_URL || '/Arda/',
   publicDir: 'public',
+  resolve: {
+    alias: [
+      { find: 'maplibre-gl-core', replacement: 'maplibre-gl' },
+      { find: 'maplibre-gl', replacement: path.resolve(__dirname, 'braudel/src/services/cartography/maplibre-shim.ts') }
+    ]
+  },
+  optimizeDeps: {
+    include: ['maplibre-gl-core', 'maplibre-proj', 'backproj']
+  },
+  ssr: {
+    noExternal: ['maplibre-proj', 'maplibre-gl']
+  },
   plugins: [
     react(),
     {

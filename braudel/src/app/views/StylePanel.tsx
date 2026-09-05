@@ -256,6 +256,7 @@ export const StylePanel: React.FC = () => {
           >
             <option value="mercator">Web Mercator (Plat 2D Standard)</option>
             <option value="globe">Globe 3D Sphérique (Orthographique)</option>
+            <option value="eckert4">Eckert IV (Plat 2D Équivalent)</option>
           </select>
         </div>
 

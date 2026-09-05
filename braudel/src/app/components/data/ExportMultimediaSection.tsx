@@ -1,7 +1,7 @@
 // app/components/data/ExportMultimediaSection.tsx
 
 import React from 'react';
-import { FileText, Image as ImageIcon, Globe, BookOpen, Video } from 'lucide-react';
+import { FileText, Image as ImageIcon, Globe, BookOpen, Video, Film } from 'lucide-react';
 
 interface ExportMultimediaSectionProps {
   exportProgress: number | null;
@@ -11,6 +11,7 @@ interface ExportMultimediaSectionProps {
   onHtmlSimpleExport: () => void;
   onStoryboardExport: () => void;
   onWebmExport: () => void;
+  onStudioOpen?: () => void;
 }
 
 export const ExportMultimediaSection: React.FC<ExportMultimediaSectionProps> = ({
@@ -21,6 +22,7 @@ export const ExportMultimediaSection: React.FC<ExportMultimediaSectionProps> = (
   onHtmlSimpleExport,
   onStoryboardExport,
   onWebmExport,
+  onStudioOpen,
 }) => {
   return (
     <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
@@ -59,6 +61,29 @@ export const ExportMultimediaSection: React.FC<ExportMultimediaSectionProps> = (
         >
           <Video size={13} /> Vidéo WebM
         </button>
+
+        {onStudioOpen && (
+          <button
+            className="btn btn-secondary"
+            onClick={onStudioOpen}
+            disabled={exportProgress !== null}
+            style={{
+              fontSize: '0.75rem',
+              padding: '6px',
+              gridColumn: 'span 2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              color: '#c084fc',
+              borderColor: 'rgba(168, 85, 247, 0.4)',
+              background: 'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(56,189,248,0.08))'
+            }}
+            title="Ouvrir l'éditeur Studio CapCut (montage multi-pistes, durées personnalisées, audio)"
+          >
+            <Film size={13} /> Studio Vidéo & Audio (CapCut-like)
+          </button>
+        )}
       </div>
 
       {exportProgress !== null && (

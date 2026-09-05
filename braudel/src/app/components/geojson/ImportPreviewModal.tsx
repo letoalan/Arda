@@ -164,11 +164,14 @@ export const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
               onChange={(e) => setSelectedLayerId(e.target.value)}
               style={{ flex: 1 }}
             >
-              {layers.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name} ({l.type})
-                </option>
-              ))}
+              {layers.map((l) => {
+                const isAlpha = l.order === 0 || (l.meta as any)?.isBaseLayer || l.name.includes('(Alpha)');
+                return (
+                  <option key={l.id} value={l.id}>
+                    {isAlpha ? '🛡️ [Alpha] ' : ''}{l.name} ({l.type})
+                  </option>
+                );
+              })}
             </select>
           </div>
 

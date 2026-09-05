@@ -2,6 +2,7 @@
 
 import { createMeta } from '../../core/schema/meta';
 import { createRealWorld as createRealWorldRecord, createFictionalWorld as createFictionalWorldRecord } from '../../core/schema/world';
+import { createLayer } from '../../core/schema/layers';
 import { BasemapStyleId } from '../../core/styles.config';
 import { getBasemapFeatureDefaults } from '../../core/styles/styleFeatureDefaults';
 import * as db from '../../services/persistence/indexeddb';
@@ -16,10 +17,17 @@ export async function executeCreateRealWorld(name: string, description?: string,
   await db.put('meta', meta);
   await db.put('world', worldRecord);
 
+  // Couche Alpha préalable (socle géopolitique de base)
+  const alphaLayer = createLayer(worldRecord.id, 'political', 'Fond Géopolitique (Alpha)', 0);
+  if (alphaLayer.meta) {
+    (alphaLayer.meta as any).isBaseLayer = true;
+  }
+  await db.put('layers', alphaLayer);
+
   const loadedWorld = {
     ...emptyWorld,
     world: [worldRecord],
-    layers: [],
+    layers: [alphaLayer],
     entities: [],
     relations: [],
   };
@@ -51,10 +59,17 @@ export async function executeCreateFictionalWorld(name: string, description?: st
   await db.put('meta', meta);
   await db.put('world', worldRecord);
 
+  // Couche Alpha préalable (socle géographique de base pour monde imaginaire)
+  const alphaLayer = createLayer(worldRecord.id, 'physical', 'Fond Géographique (Alpha)', 0);
+  if (alphaLayer.meta) {
+    (alphaLayer.meta as any).isBaseLayer = true;
+  }
+  await db.put('layers', alphaLayer);
+
   const loadedWorld = {
     ...emptyWorld,
     world: [worldRecord],
-    layers: [],
+    layers: [alphaLayer],
     entities: [],
     relations: [],
   };

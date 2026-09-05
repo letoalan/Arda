@@ -93,11 +93,26 @@ L'encodage vidéo par le compresseur matériel du navigateur (`MediaRecorder`) s
 
 - **Implémentation TypeScript** : [`video-export.ts`](./video-export.ts)
 - **Modale d'export dédiée** : [`../../app/components/data/ExportVideoModal.tsx`](../../app/components/data/ExportVideoModal.tsx)
+- **Éditeur Studio multi-pistes (CapCut-like)** : [`../../app/components/studio/StudioTimeline.tsx`](../../app/components/studio/StudioTimeline.tsx)
+- **Modèle de timeline enrichie** : [`studio-types.ts`](./studio-types.ts)
+- **Importation et formes d'ondes audio** : [`audio-import.ts`](./audio-import.ts)
+- **Planificateur temporel & synchronisation** : [`TimelineScheduler.ts`](./TimelineScheduler.ts)
 - **Orchestration caméra** : [`../cartography/camera-orchestrator.ts`](../cartography/camera-orchestrator.ts)
 - **Schéma de données Story** : [`../../core/schema/story.ts`](../../core/schema/story.ts)
 - **Composant IHM déclencheur** : [`../../app/components/data/ExportMultimediaSection.tsx`](../../app/components/data/ExportMultimediaSection.tsx)
 
-## 8. Fiabilisation et Garde-fous (implementation-video.md)
+## 8. Mode Studio & Montage Multi-Pistes (CapCut-like)
+
+Le mode Studio permet de manipuler la timeline des périodes en amont de l'exportation :
+- **Durées personnalisées par période** : extension/réduction en millisecondes par manipulation directe des bords des blocs.
+- **Importation de médias externes (Images & Vidéos)** : insertion de fichiers PNG/JPEG/WebP/SVG ou MP4/WebM peints directement sur le canevas 2D relais pendant leur fenêtre temporelle avec préservation des proportions.
+- **Crops temporels universels (In / Out)** : rognage non destructif des vidéos, cartes et audios via `trimStartMs` et `trimEndMs`.
+- **Opérations de montage professionnelles** : Scission (`Split` au playhead), Copier, Couper, Coller sur la timeline avec résolution automatique des chevauchements.
+- **Pistes audio synchronisées** : importation de fichiers MP3/WAV/OGG, tracé de la forme d'onde, réglage de volume unitaire, fondus d'entrée/sortie (`fadeIn`, `fadeOut`) et découpage non destructif (`trim`).
+- **Mixage temps réel** : les flux audio Web Audio sont mixés avec le canevas vidéo relais dans un `MediaStream` unique transmis à l'encodeur VP9/Opus.
+- **Scrubbing interactif** : curseur de lecture (playhead) synchronisé en continu avec la carte MapLibre.
+
+## 9. Fiabilisation et Garde-fous (implementation-video.md)
 
 Le pipeline vidéo intègre 7 niveaux de protection pour prévenir la génération de fichiers vides ou corrompus, implémentés suite au diagnostic de [`implementation-video.md`](../../implementation-video.md) :
 

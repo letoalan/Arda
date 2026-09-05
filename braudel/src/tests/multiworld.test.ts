@@ -85,22 +85,24 @@ describe('Multi-World Database Isolation', () => {
     // Save state layers into mock db
     mockDb['layers'] = [...mockDb['layers'], ...useStore.getState().world.layers.filter(l => l.worldId === idB)];
 
-    // 3. Load World A and verify it only has Layer A
+    // 3. Load World A and verify it has both Alpha Layer and Layer A (isolated from World B)
     await initFromDB(idA);
     const stateA = useStore.getState();
     expect(stateA.world.world[0].name).toBe('World A');
-    expect(stateA.world.layers.length).toBe(1);
-    expect(stateA.world.layers[0].name).toBe('Layer A');
+    expect(stateA.world.layers.length).toBe(2);
+    expect(stateA.world.layers.some(l => l.name === 'Layer A')).toBe(true);
+    expect(stateA.world.layers.some(l => l.name.includes('(Alpha)'))).toBe(true);
 
-    // 4. Load World B and verify it only has Layer B
+    // 4. Load World B and verify it has both Alpha Layer and Layer B (isolated from World A)
     await initFromDB(idB);
     const stateB = useStore.getState();
     expect(stateB.world.world[0].name).toBe('World B');
-    expect(stateB.world.layers.length).toBe(1);
-    expect(stateB.world.layers[0].name).toBe('Layer B');
+    expect(stateB.world.layers.length).toBe(2);
+    expect(stateB.world.layers.some(l => l.name === 'Layer B')).toBe(true);
+    expect(stateB.world.layers.some(l => l.name.includes('(Alpha)'))).toBe(true);
   });
 
-  it('duplicates worlds successfully', async () => {
+  it('duplicates worlds successfully including the Alpha base layer', async () => {
     const { createRealWorld, initFromDB, addLayer, duplicateWorld } = useStore.getState();
 
     const idOrig = await createRealWorld('Original World', 'original', 'contemporary_current', 0, 100);
@@ -115,11 +117,26 @@ describe('Multi-World Database Isolation', () => {
     const dupWorld = allWorlds.find(w => w.name === 'Duplicated World');
     expect(dupWorld).toBeDefined();
 
-    // Load duplicated world and verify it copied the layer
+    // Load duplicated world and verify it copied both the Alpha layer and custom layer
     await initFromDB(dupWorld.id);
     const dupState = useStore.getState();
-    expect(dupState.world.layers.length).toBe(1);
-    expect(dupState.world.layers[0].name).toBe('Original Layer');
-    expect(dupState.world.layers[0].worldId).toBe(dupWorld.id);
+    expect(dupState.world.layers.length).toBe(2);
+    expect(dupState.world.layers.some(l => l.name === 'Original Layer')).toBe(true);
+    expect(dupState.world.layers.some(l => l.name.includes('(Alpha)'))).toBe(true);
+    expect(dupState.world.layers.every(l => l.worldId === dupWorld.id)).toBe(true);
+  });
+
+  it('creates initial Alpha layer with order 0 and political type on real world creation', async () => {
+    const { createRealWorld } = useStore.getState();
+    const id = await createRealWorld('Alpha World', 'Testing alpha layer', 'contemporary_current', 0, 500);
+    expect(id).toBeDefined();
+
+    const state = useStore.getState();
+    expect(state.world.layers.length).toBe(1);
+    expect(state.world.layers[0].name).toBe('Fond Géopolitique (Alpha)');
+    expect(state.world.layers[0].type).toBe('political');
+    expect(state.world.layers[0].order).toBe(0);
+    expect(state.world.layers[0].visible).toBe(true);
+    expect((state.world.layers[0].meta as any)?.isBaseLayer).toBe(true);
   });
 });

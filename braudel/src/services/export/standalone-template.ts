@@ -72,7 +72,7 @@ export function generateStandaloneHtml(
     basemapRoadsVisible?: boolean;
     basemapRiversVisible?: boolean;
     pitch?: number;
-    projection?: 'mercator' | 'globe';
+    projection?: 'mercator' | 'globe' | 'eckert4';
   }
 ): string {
   const isDark = true;

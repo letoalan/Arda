@@ -11,8 +11,10 @@ Le secteur `components/` regroupe l'ensemble des sous-composants réutilisables 
 | **`entity/`** | Formulaires, cartes de détails, filtres et listes d'entités |
 | **`geojson/`** | Modales de prévisualisation, tableaux de candidats et cartes de catalogue GeoJSON |
 | **`ia/`** | Cartes de propositions IA, historique et paramètres Ollama |
+| **`map/`** | Canvas de rhumbs, repères d'atlas, reprojection GPU Eckert IV (`EckertIVWarpCanvas`) |
 | **`network/`** | Contrôles de filtres et barres d'outils du graphe de réseau |
 | **`story/`** | Éditeur de storyboard, lecteur audio/vidéo synchro et prévisualisation |
+| **`studio/`** | Montage timeline multi-pistes (CapCut-like), scrubbing et mixage audio |
 | **`welcome/`** | Liste et cartes de sélection des mondes existants |
 
 ## Fil d'Ariane

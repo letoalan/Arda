@@ -1,0 +1,1 @@
+function e(e){let t=new WeakMap;return{postMessage:e.postMessage.bind(e),addEventListener:(n,r)=>{let i=e=>{`handleEvent`in r?r.handleEvent({data:e}):r({data:e})};e.on(`message`,i),t.set(r,i)},removeEventListener:(n,r)=>{let i=t.get(r);i&&(e.off(`message`,i),t.delete(r))},start:e.start&&e.start.bind(e)}}export{e as default};

@@ -16,12 +16,34 @@ import { ContinentBuilderView } from './views/ContinentBuilderView';
 import { WikiPagePanel } from './views/WikiPagePanel';
 import { useStore } from './state/store';
 import { Menu, X, Hand, Home } from 'lucide-react';
+import { mapService } from '../services/cartography/map-service';
 
 const WorkspaceContainer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { initFromDB, saveToDB, world, isLoading, viewMode, prometheanMode, togglePrometheanMode } = useStore();
+  const { 
+    initFromDB, 
+    saveToDB, 
+    world, 
+    isLoading, 
+    viewMode, 
+    prometheanMode, 
+    togglePrometheanMode, 
+    isStudioMode,
+    studioLayoutMode 
+  } = useStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Redimensionnement automatique de la carte lors de l'entrée/sortie du Mode Studio ou bascule 2 écrans
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const map = mapService.getMap();
+      if (map && typeof map.resize === 'function') {
+        map.resize();
+      }
+    }, 60);
+    return () => clearTimeout(timeout);
+  }, [isStudioMode, studioLayoutMode]);
 
   // Initialize/load world by ID from IndexedDB if not already loaded in state
   useEffect(() => {
@@ -69,17 +91,22 @@ const WorkspaceContainer: React.FC = () => {
   return (
     <div className={`app-container ${prometheanMode ? 'promethean-mode' : ''}`}>
       {/* Sidebar toggle button (Mobile only) */}
-      <button
-        className="sidebar-toggle-btn"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        title="Menu"
-        style={{ left: sidebarOpen ? '296px' : '16px', transition: 'left 0.3s ease' }}
-      >
-        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-      </button>
+      {!isStudioMode && (
+        <button
+          className="sidebar-toggle-btn"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          title="Menu"
+          style={{ left: sidebarOpen ? '296px' : '16px', transition: 'left 0.3s ease' }}
+        >
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      )}
 
       {/* Sidebar for Panels */}
-      <div className={`sidebar-panel panel ${sidebarOpen ? 'open' : ''}`}>
+      <div 
+        className={`sidebar-panel panel ${sidebarOpen ? 'open' : ''}`}
+        style={isStudioMode ? { display: 'none' } : undefined}
+      >
         <div className="panel-header" style={{ margin: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
             <button
@@ -117,11 +144,24 @@ const WorkspaceContainer: React.FC = () => {
       </div>
 
       {/* Main Map View or Network View */}
-      <div className="main-view-container">
+      <div 
+        className="main-view-container"
+        style={isStudioMode ? {
+          position: 'fixed',
+          top: '52px',
+          left: 0,
+          width: studioLayoutMode === 'single' ? '0px' : '50%',
+          height: 'calc(100vh - 52px - 340px)',
+          zIndex: 99990,
+          display: studioLayoutMode === 'single' ? 'none' : 'flex',
+          borderRight: '1px solid rgba(168, 85, 247, 0.3)',
+          overflow: 'hidden'
+        } : undefined}
+      >
         <div style={{ flex: 1, position: 'relative', height: '100%' }}>
           {viewMode === 'network' ? <NetworkGraphView /> : <MapView />}
         </div>
-        <TimelineView />
+        {!isStudioMode && <TimelineView />}
       </div>
 
       {/* Extension Wiki Overlay */}

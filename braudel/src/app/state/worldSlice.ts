@@ -1,15 +1,17 @@
 // app/state/worldSlice.ts
 
 import { DatabaseSchema } from '../../core/schema';
+import { Layer, Entity } from '../../core/schema/types';
 import { 
   openDB, 
   getAll, 
   queryByWorldId, 
-  get as getDbRecord, 
-  put 
+  get as getDbRecord,
+  put
 } from '../../services/persistence/indexeddb';
 import { createMeta } from '../../core/schema/meta';
 import { STYLE_CONFIGS } from '../../core/styles.config';
+import { createLayer } from '../../core/schema/layers';
 
 export const emptyWorld: DatabaseSchema = {
   meta: [],
@@ -60,11 +62,44 @@ export async function handleInitFromDB(worldId?: string) {
   }
 
   const id = (targetWorldRecord as any).id;
+  const wRecord = targetWorldRecord as any;
+
+  let layers = dedupeById(await queryByWorldId<Layer>('layers', id));
+
+  // Auto-réparation rétrocompatible : si aucune couche n'existe (anciens mondes), créer la couche Alpha
+  if (layers.length === 0) {
+    const isFictional = wRecord.worldType === 'fictional';
+    const alphaLayer = createLayer(
+      id,
+      isFictional ? 'physical' : 'political',
+      isFictional ? 'Fond Géographique (Alpha)' : 'Fond Géopolitique (Alpha)',
+      0
+    );
+    if (alphaLayer.meta) {
+      (alphaLayer.meta as any).isBaseLayer = true;
+    }
+    await put('layers', alphaLayer);
+    layers = [alphaLayer];
+  }
+
+  let entities = dedupeById(await queryByWorldId<Entity>('entities', id));
+  // Si des entités ont un layerId orphelin (inexistant dans layers), les réassigner à la couche Alpha
+  const layerIdsSet = new Set(layers.map((l: any) => l.id));
+  const alphaLayerId = layers[0].id;
+  entities = entities.map((e: any) => {
+    if (!e.layerId || !layerIdsSet.has(e.layerId)) {
+      const updated = { ...e, layerId: alphaLayerId };
+      put('entities', updated);
+      return updated;
+    }
+    return e;
+  });
+
   const loadedWorld: DatabaseSchema = {
     meta: dedupeById(await getAll('meta')),
     world: [targetWorldRecord as any],
-    layers: dedupeById(await queryByWorldId('layers', id)),
-    entities: dedupeById(await queryByWorldId('entities', id)),
+    layers,
+    entities,
     relations: dedupeById(await queryByWorldId('relations', id)),
     timelines: dedupeById(await queryByWorldId('timelines', id)),
     styles: dedupeById(await queryByWorldId('styles', id)),
@@ -74,7 +109,6 @@ export async function handleInitFromDB(worldId?: string) {
     history: dedupeById(await queryByWorldId('history', id))
   };
   
-  const wRecord = targetWorldRecord as any;
   const defaultStyle = wRecord.worldType === 'fictional' ? 'tolkien_high_fantasy' : 'contemporary_current';
   const effectiveStyle = (wRecord.basemapStyle as any) || defaultStyle;
   const styleConfig = STYLE_CONFIGS.find(s => s.id === effectiveStyle);

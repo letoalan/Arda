@@ -1,6 +1,7 @@
 // app/state/slices/worldSlice.ts
 
 import { DatabaseSchema } from '../../../core/schema';
+import { Layer, Entity } from '../../../core/schema/types';
 import { 
   openDB, 
   getAll, 
@@ -9,6 +10,7 @@ import {
   put 
 } from '../../../services/persistence/indexeddb';
 import { createMeta } from '../../../core/schema/meta';
+import { createLayer } from '../../../core/schema/layers';
 import { getBasemapFeatureDefaults } from '../../../core/styles/styleFeatureDefaults';
 
 export const emptyWorld: DatabaseSchema = {
@@ -34,17 +36,11 @@ export interface WorldState {
 
 export async function handleInitFromDB(worldId?: string) {
   await openDB();
-  let allWorlds = await getAll<any>('world');
+  const allWorlds = await getAll<any>('world');
   
   let targetWorldRecord = null;
   if (worldId) {
-    targetWorldRecord = allWorlds.find((w: any) => w.id === worldId) || (await getDbRecord<any>('world', worldId));
-    if (!targetWorldRecord) {
-      // Petite pause de sécurité si la base venait d'écrire
-      await new Promise((r) => setTimeout(r, 60));
-      allWorlds = await getAll<any>('world');
-      targetWorldRecord = allWorlds.find((w: any) => w.id === worldId) || (await getDbRecord<any>('world', worldId));
-    }
+    targetWorldRecord = allWorlds.find((w: any) => w.id === worldId);
   } else if (allWorlds.length > 0) {
     targetWorldRecord = allWorlds[0];
   }
@@ -58,11 +54,43 @@ export async function handleInitFromDB(worldId?: string) {
   }
 
   const id = (targetWorldRecord as any).id;
+  const wRecord = targetWorldRecord as any;
+
+  let layers = await queryByWorldId<Layer>('layers', id);
+
+  // Auto-réparation rétrocompatible : si aucune couche n'existe, créer la couche Alpha
+  if (layers.length === 0) {
+    const isFictional = wRecord.worldType === 'fictional';
+    const alphaLayer = createLayer(
+      id,
+      isFictional ? 'physical' : 'political',
+      isFictional ? 'Fond Géographique (Alpha)' : 'Fond Géopolitique (Alpha)',
+      0
+    );
+    if (alphaLayer.meta) {
+      (alphaLayer.meta as any).isBaseLayer = true;
+    }
+    await put('layers', alphaLayer);
+    layers = [alphaLayer];
+  }
+
+  let entities = await queryByWorldId<Entity>('entities', id);
+  const layerIdsSet = new Set(layers.map((l: any) => l.id));
+  const alphaLayerId = layers[0].id;
+  entities = entities.map((e: any) => {
+    if (!e.layerId || !layerIdsSet.has(e.layerId)) {
+      const updated = { ...e, layerId: alphaLayerId };
+      put('entities', updated);
+      return updated;
+    }
+    return e;
+  });
+
   const loadedWorld: DatabaseSchema = {
     meta: await getAll('meta'),
     world: [targetWorldRecord as any],
-    layers: await queryByWorldId('layers', id),
-    entities: await queryByWorldId('entities', id),
+    layers,
+    entities,
     relations: await queryByWorldId('relations', id),
     timelines: await queryByWorldId('timelines', id),
     styles: await queryByWorldId('styles', id),
@@ -72,7 +100,6 @@ export async function handleInitFromDB(worldId?: string) {
     history: await queryByWorldId('history', id)
   };
   
-  const wRecord = targetWorldRecord as any;
   const defaultStyle = wRecord.worldType === 'fictional' ? 'tolkien_high_fantasy' : 'contemporary_current';
   const effectiveStyle = (wRecord.basemapStyle as any) || defaultStyle;
   const defaults = getBasemapFeatureDefaults(effectiveStyle);

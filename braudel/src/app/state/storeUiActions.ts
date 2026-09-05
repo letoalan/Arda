@@ -34,5 +34,7 @@ export function createUiSlice(set: any) {
     setFirstLoadDone: (done: boolean) => set({ isFirstLoadDone: done }),
     setNetworkFilters: (filters: any) => set({ networkFilters: filters }),
     clearErrors: () => set({ importError: null, exportError: null }),
+    setStudioMode: (active: boolean) => set({ isStudioMode: active }),
+    setStudioLayoutMode: (mode: 'dual' | 'single') => set({ studioLayoutMode: mode }),
   };
 }

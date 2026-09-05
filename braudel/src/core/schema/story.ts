@@ -122,7 +122,8 @@ export const StoryProjectSchema = z.object({
   description: z.string().optional(),
   theme: z.string().optional(),
   defaultFps: z.number().default(30),
-  scenes: z.array(StorySceneSchema).default([])
+  scenes: z.array(StorySceneSchema).default([]),
+  editTimeline: z.any().optional()
 });
 export type StoryProject = z.infer<typeof StoryProjectSchema>;
 

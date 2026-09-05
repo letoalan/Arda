@@ -15,6 +15,7 @@ Le secteur `app/views/` regroupe l'ensemble des écrans principaux, panneaux lat
 | **`IAPanel.tsx`** | Panneau d'assistance IA et requêtes Ollama | [IAPanel.md](./IAPanel.md) |
 | **`NetworkGraphView.tsx`** | Graphe interactif de réseau d'entités et d'égos | [NetworkGraphView.md](./NetworkGraphView.md) |
 | **`TimelineView.tsx`** | Frise chronologique et contrôle du playback temporel | [TimelineView.md](./TimelineView.md) |
+| **`StoryEditorPanel.tsx`** | Scénarisation Bento, ordonnancement des scènes et diapositives d'appui 16:9 | [StoryEditorPanel.md](./StoryEditorPanel.md) |
 | **`DataPanel.tsx`** | Panneau d'import/export JSON, PDF haute fidélité et multimédia | [DataPanel.md](./DataPanel.md) |
 | **`WelcomeScreen.tsx`** | Écran d'accueil et sélection du type de monde | [WelcomeScreen.md](./WelcomeScreen.md) |
 
