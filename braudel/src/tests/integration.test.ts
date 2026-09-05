@@ -82,9 +82,10 @@ describe('Integration — Full World Lifecycle', () => {
     // 2. Add layer
     const layerName = 'Political Borders';
     addLayer(layerName, 'political');
-    const layerId = useStore.getState().world.layers[0].id;
-    expect(layerId).toBeDefined();
-    expect(useStore.getState().world.layers[0].name).toBe(layerName);
+    const createdLayer = useStore.getState().world.layers.find(l => l.name === layerName);
+    expect(createdLayer).toBeDefined();
+    const layerId = createdLayer!.id;
+    expect(createdLayer!.name).toBe(layerName);
 
     // 3. Add entity
     const entityName = 'Kingdom of Gondor';
@@ -111,13 +112,14 @@ describe('Integration — Full World Lifecycle', () => {
     // 6. Reload from DB
     await initFromDB(worldId);
     
-    // Verify restored state
+    // Verify restored state (Alpha layer + custom layer)
     const restoredWorld = useStore.getState().world;
     expect(restoredWorld.world).toHaveLength(1);
     expect(restoredWorld.world[0].name).toBe('My Fictional World');
     
-    expect(restoredWorld.layers).toHaveLength(1);
-    expect(restoredWorld.layers[0].name).toBe(layerName);
+    expect(restoredWorld.layers).toHaveLength(2);
+    expect(restoredWorld.layers.some(l => l.name === layerName)).toBe(true);
+    expect(restoredWorld.layers.some(l => l.name.includes('(Alpha)'))).toBe(true);
     
     expect(restoredWorld.entities).toHaveLength(1);
     expect(restoredWorld.entities[0].name).toBe(entityName);

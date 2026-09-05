@@ -101,3 +101,33 @@ export const STYLE_CONFIGS: StyleConfig[] = [
   ...REAL_STYLE_CONFIGS,
   ...FANTASY_STYLE_CONFIGS
 ];
+
+/**
+ * Résout le cap (bearing) effectif d'un plan ou d'une scène cartographique.
+ * Garantit que les styles avec orientation historique spécifique (notamment Al-Idrisi à 180° Sud en haut)
+ * conservent scrupuleusement leur cap même si un bearing par défaut à 0° ou undefined a été transmis.
+ */
+export function getEffectiveStyleBearing(styleId?: string, explicitBearing?: number): number {
+  const isAlIdrisi = styleId === 'al_idrisi' || (typeof styleId === 'string' && styleId.toLowerCase().includes('idrisi'));
+  if (isAlIdrisi) {
+    // Pour Al-Idrisi, si le bearing est indéfini ou remis à 0 par défaut, forcer le 180° Sud en haut
+    if (explicitBearing === undefined || explicitBearing === 0) {
+      return 180;
+    }
+    return explicitBearing;
+  }
+
+  if (typeof explicitBearing === 'number') {
+    return explicitBearing;
+  }
+
+  if (styleId) {
+    const cfg = STYLE_CONFIGS.find(s => s.id === styleId);
+    if (cfg && typeof cfg.bearing === 'number') {
+      return cfg.bearing;
+    }
+  }
+
+  return 0;
+}
+

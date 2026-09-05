@@ -16,6 +16,7 @@ Composants de prévisualisation et de sélection ciblée avant l'importation d'u
 ## Fonctionnalités Clés
 - Filtrage interactif par nom, continent, ou type de géométrie.
 - Sélection/Désélection globale ou individuelle des candidats.
+- Sélection de la couche de destination ciblant par défaut la couche Alpha (`🛡️ [Alpha] Fond Géopolitique (Alpha)`).
 - Confirmation et transmission de la liste validée à `geopoliticaImporter.ts`.
 
 ## Secteur Parent

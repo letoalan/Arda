@@ -4,7 +4,7 @@ import React, { useRef, useState, useMemo } from 'react';
 import { useStore } from '../state/store';
 import { Database, Download, UploadCloud, XCircle } from 'lucide-react';
 import { mapService } from '../../services/cartography/map-service';
-import { STYLE_CONFIGS } from '../../core/styles.config';
+import { STYLE_CONFIGS, getEffectiveStyleBearing } from '../../core/styles.config';
 import { exportMultiEpochPDF, exportTimelineDrivenPDF, exportToJPEG, exportMultiEpochZIP } from '../../services/export/export-multimedia';
 
 
@@ -16,6 +16,8 @@ import { ExportMultimediaSection } from '../components/data/ExportMultimediaSect
 import { ExportPdfModal } from '../components/data/ExportPdfModal';
 import { ExportZipModal } from '../components/data/ExportZipModal';
 import { ExportVideoModal } from '../components/data/ExportVideoModal';
+import { StudioTimeline } from '../components/studio/StudioTimeline';
+import { EditTimeline } from '../../services/export/studio-types';
 import { GEOPOLITICA_SOURCES } from '../../services/import/geopoliticaRegistry';
 import { getCatalogTemporalEntities } from '../../services/import/geojson-catalog-service';
 import { extractActiveEpochs } from '../../services/export/pdf-timeline-utils';
@@ -44,7 +46,8 @@ export const DataPanel: React.FC = () => {
     basemapBordersVisible,
     basemapRoadsVisible,
     basemapRiversVisible,
-    setCurrentTime
+    setCurrentTime,
+    setStudioMode,
   } = useStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +59,8 @@ export const DataPanel: React.FC = () => {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isVideoExporting, setIsVideoExporting] = useState(false);
   const [videoProgress, setVideoProgress] = useState<VideoExportProgress | null>(null);
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [studioTimeline, setStudioTimeline] = useState<EditTimeline | null>(null);
 
   const worldName = world.world[0]?.name || 'Monde Braudel';
 
@@ -329,12 +334,30 @@ export const DataPanel: React.FC = () => {
 
   const prepareStoryForExport = () => {
     const map = mapService.getMap();
-    const currentBearing = map ? map.getBearing() : 0;
+    const rawBearing = map ? map.getBearing() : 0;
+    const currentBearing = getEffectiveStyleBearing(basemapStyle, rawBearing);
     const currentPitch = map ? map.getPitch() : 0;
     const currentCenter = map ? [map.getCenter().lng, map.getCenter().lat] as [number, number] : [2, 45] as [number, number];
     const currentZoom = map ? map.getZoom() : 3;
 
     let story = loadStoryFromStorage(worldName);
+    if (studioTimeline) {
+      // Normalisation des clips de la timeline pour préserver le cap spécifique (ex: 180° Al-Idrisi)
+      const normalizedTimeline: EditTimeline = {
+        ...studioTimeline,
+        videoTracks: studioTimeline.videoTracks.map(clip => ({
+          ...clip,
+          mapState: clip.mapState ? {
+            ...clip.mapState,
+            bearing: getEffectiveStyleBearing(clip.mapState.basemapStyle || basemapStyle, clip.mapState.bearing)
+          } : undefined
+        }))
+      };
+      story = {
+        ...story,
+        editTimeline: normalizedTimeline
+      };
+    }
     if (story.scenes.length === 1 && story.scenes[0].id === 'scene-1') {
       const activeEpochs = extractActiveEpochs(world.entities, world.relations, startYear, endYear);
       const importedEpochs = activeEpochs.filter(e => e.isImportedOnMap || e.entityCount > 0);
@@ -358,6 +381,7 @@ export const DataPanel: React.FC = () => {
                 zoom: currentZoom,
                 bearing: currentBearing,
                 pitch: currentPitch,
+                basemapStyle,
                 timelineYear: ep.targetYear !== undefined ? ep.targetYear : ep.year,
                 visibleLayerIds: []
               },
@@ -384,6 +408,7 @@ export const DataPanel: React.FC = () => {
             zoom: currentZoom,
             bearing: currentBearing,
             pitch: currentPitch,
+            basemapStyle: story.scenes[0].mapState?.basemapStyle || basemapStyle,
             timelineYear: currentTime
           }
         };
@@ -396,17 +421,19 @@ export const DataPanel: React.FC = () => {
         scenes: story.scenes.map((scene, idx) => {
           const rawTitle = scene.title || `Période ${idx + 1}`;
           const cleanTitle = rawTitle.replace(/^Période\s+\d+(\/\d+)?\s*[-—:]\s*/i, '');
-          const year = scene.mapState.timelineYear ?? currentTime;
+          const year = scene.mapState?.timelineYear ?? currentTime;
           const formattedYear = year < 0 ? `${Math.abs(year)} av. J.-C.` : `An ${year}`;
           return {
             ...scene,
             periodNumber: idx + 1,
             totalPeriods: total,
             title: `Période ${idx + 1}/${total} — ${cleanTitle.startsWith('Scène') ? formattedYear : cleanTitle}`,
-            mapState: {
+            mapState: scene.mapState ? {
               ...scene.mapState,
+              bearing: getEffectiveStyleBearing(scene.mapState.basemapStyle || basemapStyle, scene.mapState.bearing),
+              basemapStyle: scene.mapState.basemapStyle || basemapStyle,
               timelineYear: scene.mapState.timelineYear ?? currentTime
-            }
+            } : scene.mapState
           };
         })
       };
@@ -414,9 +441,25 @@ export const DataPanel: React.FC = () => {
     return story;
   };
 
-  const handleStartVideoExport = async (fps: number, includeLegend: boolean = true) => {
+  const handleStartVideoExport = async (
+    fps: number, 
+    includeLegend: boolean = true, 
+    resolutionOrTimeline?: EditTimeline | '1080p' | '720p' | 'vertical_1080p' | 'square_1080p',
+    optionalTimeline?: EditTimeline
+  ) => {
     const map = mapService.getMap();
     if (!map) return;
+
+    let customTimeline: EditTimeline | undefined;
+    let videoResolution: '1080p' | '720p' | 'vertical_1080p' | 'square_1080p' = '1080p';
+
+    if (typeof resolutionOrTimeline === 'string') {
+      videoResolution = resolutionOrTimeline;
+      customTimeline = optionalTimeline;
+    } else if (typeof resolutionOrTimeline === 'object') {
+      customTimeline = resolutionOrTimeline;
+    }
+
     setIsVideoExporting(true);
     setVideoProgress({
       phase: 'stabilizing',
@@ -434,6 +477,7 @@ export const DataPanel: React.FC = () => {
     });
 
     const storyToExport = prepareStoryForExport();
+    const effectiveTimeline = customTimeline || studioTimeline || undefined;
 
     try {
       const liveWorld = useStore.getState().world;
@@ -449,6 +493,9 @@ export const DataPanel: React.FC = () => {
           relations: liveWorld.relations,
           layers: liveWorld.layers,
           includeLegend,
+          timeline: effectiveTimeline,
+          videoResolution: videoResolution || '1080p',
+          basemapStyle,
           updateEntities: (t) => {
             const w = useStore.getState().world;
             mapService.updateEntities(w.entities, w.relations, t, undefined, w.layers);
@@ -460,6 +507,21 @@ export const DataPanel: React.FC = () => {
     } finally {
       setIsVideoExporting(false);
     }
+  };
+
+  const handleExportFromStudio = async (timeline: EditTimeline, fps: number, includeLegend: boolean, resolution?: any) => {
+    setStudioTimeline(timeline);
+    setIsStudioOpen(false);
+    setStudioMode(false);
+    setIsVideoModalOpen(true);
+    // Attendre que le layout repasse en plein écran et forcer le redimensionnement WebGL de la carte
+    await new Promise(r => setTimeout(r, 120));
+    const map = mapService.getMap();
+    if (map && typeof map.resize === 'function') {
+      map.resize();
+    }
+    await new Promise(r => setTimeout(r, 60));
+    handleStartVideoExport(fps, includeLegend, resolution || '1080p', timeline);
   };
 
   return (
@@ -503,6 +565,10 @@ export const DataPanel: React.FC = () => {
         onWebmExport={() => {
           setVideoProgress(null);
           setIsVideoModalOpen(true);
+        }}
+        onStudioOpen={() => {
+          setIsStudioOpen(true);
+          setStudioMode(true);
         }}
       />
 
@@ -550,7 +616,30 @@ export const DataPanel: React.FC = () => {
         isExporting={isVideoExporting}
         videoProgress={videoProgress}
         onStartExport={handleStartVideoExport}
+        onOpenStudio={() => {
+          setIsVideoModalOpen(false);
+          setIsStudioOpen(true);
+          setStudioMode(true);
+        }}
         onClose={() => !isVideoExporting && setIsVideoModalOpen(false)}
+      />
+
+      {/* Mode Studio : Montage Vidéo & Audio Multi-Pistes (Option 2 - Dock Pleine Largeur) */}
+      <StudioTimeline
+        isOpen={isStudioOpen}
+        story={prepareStoryForExport()}
+        worldName={worldName}
+        map={mapService.getMap()}
+        currentTime={currentTime}
+        setCurrentTime={setCurrentTime}
+        onClose={() => {
+          setIsStudioOpen(false);
+          setStudioMode(false);
+        }}
+        onExportTimeline={handleExportFromStudio}
+        onSaveProject={(savedTimeline) => {
+          setStudioTimeline(savedTimeline);
+        }}
       />
     </div>
   );

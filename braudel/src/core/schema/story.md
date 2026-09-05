@@ -11,7 +11,7 @@ Définit les schémas Zod et types TypeScript pour le module de narration cartog
   - `transition`: Profil de vol (`StoryCameraTransitionSchema`) avec temporisation narrative post-vol (`pauseAfterMs`)
   - `layout`: Mise en page (`split`, `map-full`, etc.)
   - `blocks`: Blocs de contenu multimédia additionnels
-- **`StoryProjectSchema`** : Projet de narration complet (`id`, `title`, `scenes: StoryScene[]`).
+- **`StoryProjectSchema`** : Projet de narration complet (`id`, `title`, `scenes: StoryScene[]`, `editTimeline?: EditTimeline`).
 
 ## Fil d'Ariane
 [core/](../core.md) -> [schema/](./schema.md) -> **story.md**

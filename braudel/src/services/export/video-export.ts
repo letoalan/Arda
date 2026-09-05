@@ -1,6 +1,14 @@
 import { StoryProject, StoryScene } from '../../core/schema/story';
 import { playSceneTransition, waitForMapIdle } from '../cartography/camera-orchestrator';
+import { getEffectiveStyleBearing } from '../../core/styles.config';
 import { isEntityVisibleAt } from './modules/pdf-types';
+import { EditTimeline } from './studio-types';
+import {
+  buildScheduledVideoSteps,
+  scheduleAudioTracks,
+  calculateTotalTimelineDuration,
+  AudioPlaybackHandle
+} from './TimelineScheduler';
 
 // ── Préfixe unifié pour tous les logs de diagnostic du pipeline vidéo ──
 const LOG_PREFIX = '[Video Export]';
@@ -30,6 +38,42 @@ export interface VideoExportOptions {
   minFramesPerPeriod?: number;
   includeLegend?: boolean;
   legendPosition?: 'bottom-left' | 'top-left' | 'bottom-right';
+  timeline?: EditTimeline;
+  audioBuffersMap?: Map<string, AudioBuffer>;
+  videoResolution?: '1080p' | '720p' | 'vertical_1080p' | 'square_1080p';
+  customWidth?: number;
+  customHeight?: number;
+  basemapStyle?: string;
+}
+
+/**
+ * Résout les dimensions de capture vidéo de manière stricte (16:9 Full HD 1920×1080 par défaut).
+ * Garantit l'élimination de toute anamorphose ou étirement non-homothétique du globe terrestre.
+ */
+export function resolveTargetVideoDimensions(
+  options?: VideoExportOptions,
+  _mapCanvas?: HTMLCanvasElement | null
+): { width: number; height: number; aspectRatio: number } {
+  if (options?.customWidth && options?.customHeight) {
+    return {
+      width: options.customWidth,
+      height: options.customHeight,
+      aspectRatio: options.customWidth / options.customHeight
+    };
+  }
+
+  const res = options?.videoResolution || '1080p';
+  switch (res) {
+    case 'vertical_1080p': // 9:16 (Shorts, TikTok, Reels)
+      return { width: 1080, height: 1920, aspectRatio: 9 / 16 };
+    case 'square_1080p': // 1:1 (Instagram Carré)
+      return { width: 1080, height: 1080, aspectRatio: 1 };
+    case '720p': // 16:9 HD
+      return { width: 1280, height: 720, aspectRatio: 16 / 9 };
+    case '1080p': // 16:9 Full HD Standard (Défaut)
+    default:
+      return { width: 1920, height: 1080, aspectRatio: 16 / 9 };
+  }
 }
 
 export interface VideoExportProgress {
@@ -58,12 +102,31 @@ export type VideoProgressCallback = (progress: VideoExportProgress) => void;
 
 /**
  * Évalue préalablement la tâche vidéo et sa durée totale estimée (en millisecondes).
+ * Prend en compte l'EditTimeline enrichie si fournie.
  */
-export function estimateVideoDuration(story: StoryProject): {
+export function estimateVideoDuration(story: StoryProject, timeline?: EditTimeline): {
   totalDurationMs: number;
   totalScenes: number;
   formattedDuration: string;
 } {
+  const activeTimeline = timeline || story?.editTimeline;
+  if (activeTimeline && activeTimeline.videoTracks && activeTimeline.videoTracks.length > 0) {
+    const videoMs = calculateTotalTimelineDuration(activeTimeline);
+    const audioMs = activeTimeline.audioTracks?.reduce((max: number, a: any) => {
+      return a.muted ? max : Math.max(max, (a.startMs || 0) + a.durationMs);
+    }, 0) || 0;
+    const totalMs = Math.max(videoMs, audioMs);
+    const totalSec = Math.max(1, Math.round(totalMs / 1000));
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    const formattedDuration = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return {
+      totalDurationMs: totalMs,
+      totalScenes: activeTimeline.videoTracks.length,
+      formattedDuration
+    };
+  }
+
   const scenes = story?.scenes || [];
   if (scenes.length === 0) {
     return { totalDurationMs: 3500, totalScenes: 1, formattedDuration: '00:03' };
@@ -102,15 +165,37 @@ export const CODEC_CASCADE: string[] = [
   'video/mp4',
 ];
 
+/** Codecs candidats lorsqu'une piste audio est active dans le flux (mixage Web Audio ou bande sonore). */
+export const CODEC_CASCADE_AUDIO: string[] = [
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm',
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/mp4;codecs=h264,aac',
+  'video/mp4;codecs=h264,opus',
+  'video/mp4',
+];
+
+/** Codecs candidats pour un flux vidéo pur (aucune piste audio). */
+export const CODEC_CASCADE_VIDEO_ONLY: string[] = [
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8',
+  'video/webm',
+  'video/mp4;codecs=avc1',
+  'video/mp4;codecs=h264',
+  'video/mp4',
+];
+
 /**
  * Détermine dynamiquement le meilleur codec vidéo supporté par le navigateur.
- * Retourne le premier codec de la cascade déclaré supporté par `MediaRecorder.isTypeSupported()`.
+ * Tient compte de la présence de pistes audio pour éviter le rejet des flux composites.
  */
-export function getSupportedVideoMimeType(): string | undefined {
+export function getSupportedVideoMimeType(hasAudio: boolean = false): string | undefined {
   if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
     return undefined;
   }
-  for (const candidate of CODEC_CASCADE) {
+  const cascade = hasAudio ? CODEC_CASCADE_AUDIO : CODEC_CASCADE_VIDEO_ONLY;
+  for (const candidate of cascade) {
     try {
       if (MediaRecorder.isTypeSupported(candidate)) {
         return candidate;
@@ -124,13 +209,15 @@ export function getSupportedVideoMimeType(): string | undefined {
 
 /**
  * Étape 5 — Vérifie qu'un codec est réellement fonctionnel (pas un faux positif de isTypeSupported).
- * Effectue un mini-enregistrement de 300 ms sur un canvas de test 64×64.
+ * Effectue un mini-enregistrement de 300 ms sur un canvas de test 64×64 (avec piste audio factice si hasAudio).
  * Retourne `true` si au moins un chunk non-vide est produit, `false` sinon.
  */
-export async function verifyCodecSupport(mimeType: string): Promise<boolean> {
+export async function verifyCodecSupport(mimeType: string, hasAudio: boolean = false): Promise<boolean> {
   if (typeof document === 'undefined' || typeof MediaRecorder === 'undefined') {
     return false;
   }
+  let audioCtx: AudioContext | null = null;
+  let osc: OscillatorNode | null = null;
   try {
     const testCanvas = document.createElement('canvas');
     testCanvas.width = 64;
@@ -146,11 +233,35 @@ export async function verifyCodecSupport(mimeType: string): Promise<boolean> {
     }
 
     const testStream = testCanvas.captureStream(10);
+
+    // Si on teste un flux audio-vidéo, ajouter une piste audio factice pour éviter que Firefox rejette l'enregistrement
+    if (hasAudio && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          audioCtx = new AudioCtx();
+          const dst = audioCtx.createMediaStreamDestination();
+          osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.001; // quasi-silencieux
+          osc.connect(gain);
+          gain.connect(dst);
+          osc.start();
+          const audioTrack = dst.stream.getAudioTracks()[0];
+          if (audioTrack) {
+            testStream.addTrack(audioTrack);
+          }
+        } catch {
+          // Ignorer si Web Audio indisponible lors du test
+        }
+      }
+    }
+
     let testRecorder: MediaRecorder;
     try {
       testRecorder = new MediaRecorder(testStream, { mimeType });
     } catch {
-      logDiag('verifyCodecSupport', `Impossible de créer MediaRecorder pour ${mimeType}`);
+      logDiag('verifyCodecSupport', `Impossible de créer MediaRecorder pour ${mimeType} (hasAudio=${hasAudio})`);
       testStream.getTracks().forEach(t => t.stop());
       return false;
     }
@@ -162,7 +273,14 @@ export async function verifyCodecSupport(mimeType: string): Promise<boolean> {
       }
     };
 
-    testRecorder.start(50);
+    try {
+      testRecorder.start(50);
+    } catch (startErr) {
+      logDiag('verifyCodecSupport', `start() échoué pour ${mimeType} (hasAudio=${hasAudio}):`, startErr);
+      testStream.getTracks().forEach(t => t.stop());
+      return false;
+    }
+
     await new Promise(r => setTimeout(r, 300));
 
     if (testRecorder.state === 'recording') {
@@ -181,11 +299,14 @@ export async function verifyCodecSupport(mimeType: string): Promise<boolean> {
     });
 
     testStream.getTracks().forEach(t => t.stop());
-    logDiag('verifyCodecSupport', `${mimeType} → ${receivedData ? 'OK (chunks reçus)' : 'ÉCHEC (aucun chunk)'}`);
+    logDiag('verifyCodecSupport', `${mimeType} (hasAudio=${hasAudio}) → ${receivedData ? 'OK (chunks reçus)' : 'ÉCHEC (aucun chunk)'}`);
     return receivedData;
   } catch (err) {
-    logDiag('verifyCodecSupport', `Exception pour ${mimeType}:`, err);
+    logDiag('verifyCodecSupport', `Exception pour ${mimeType} (hasAudio=${hasAudio}):`, err);
     return false;
+  } finally {
+    try { osc?.stop(); } catch { /* ignore */ }
+    try { audioCtx?.close(); } catch { /* ignore */ }
   }
 }
 
@@ -193,29 +314,31 @@ export async function verifyCodecSupport(mimeType: string): Promise<boolean> {
  * Étape 5 — Retourne le premier codec vérifié fonctionnel (test réel d'enregistrement).
  * Tombe en repli automatique sur les codecs suivants de la cascade si le premier échoue.
  */
-export async function getVerifiedMimeType(): Promise<string | undefined> {
-  const declared = getSupportedVideoMimeType();
-  if (!declared) return undefined;
-
-  // Tester d'abord le codec déclaré supporté
-  if (await verifyCodecSupport(declared)) {
-    return declared;
+export async function getVerifiedMimeType(hasAudio: boolean = false): Promise<string | undefined> {
+  if (typeof MediaRecorder === 'undefined') {
+    return undefined;
   }
-  logDiag('getVerifiedMimeType', `Codec déclaré ${declared} échoue au test réel, cascade de repli…`);
+  const cascade = hasAudio ? CODEC_CASCADE_AUDIO : CODEC_CASCADE_VIDEO_ONLY;
+  const declared = getSupportedVideoMimeType(hasAudio);
+  if (declared) {
+    if (await verifyCodecSupport(declared, hasAudio)) {
+      return declared;
+    }
+    logDiag('getVerifiedMimeType', `Codec déclaré ${declared} (hasAudio=${hasAudio}) échoue au test réel, cascade de repli…`);
+  }
 
-  // Tester les suivants dans la cascade
-  const idx = CODEC_CASCADE.indexOf(declared);
-  const remaining = idx >= 0 ? CODEC_CASCADE.slice(idx + 1) : CODEC_CASCADE;
-  for (const candidate of remaining) {
+  // Tester les suivants dans la cascade adaptée
+  for (const candidate of cascade) {
+    if (candidate === declared) continue;
     if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(candidate)) {
-      if (await verifyCodecSupport(candidate)) {
-        logDiag('getVerifiedMimeType', `Codec de repli vérifié : ${candidate}`);
+      if (await verifyCodecSupport(candidate, hasAudio)) {
+        logDiag('getVerifiedMimeType', `Codec de repli vérifié (hasAudio=${hasAudio}) : ${candidate}`);
         return candidate;
       }
     }
   }
-  logDiag('getVerifiedMimeType', 'Aucun codec vérifié, utilisation du défaut navigateur.');
-  return undefined;
+  logDiag('getVerifiedMimeType', `Aucun codec vérifié (hasAudio=${hasAudio}), utilisation du conteneur générique ou défaut.`);
+  return hasAudio ? 'video/webm' : undefined;
 }
 
 /**
@@ -574,9 +697,10 @@ export async function exportStoryToWebM(
   logDiag('CANVAS_CHECK', `Dimensions initiales : ${mapCanvas.width}×${mapCanvas.height}`);
   await waitForCanvasReady(mapCanvas);
 
-  const width = mapCanvas.width || 1920;
-  const height = mapCanvas.height || 1080;
-  logDiag('CANVAS_READY', `Dimensions finales : ${width}×${height}`);
+  const targetDims = resolveTargetVideoDimensions(options, mapCanvas);
+  const width = targetDims.width;
+  const height = targetDims.height;
+  logDiag('CANVAS_READY', `Dimensions de production vidéo : ${width}×${height} (ratio=${targetDims.aspectRatio.toFixed(3)})`);
 
   // ── Canvas 2D Relais : protection absolue contre "WebGL context was lost" ──
   // La capture s'effectue sur ce canvas 2D copié via requestAnimationFrame et l'événement render de MapLibre
@@ -602,16 +726,28 @@ export async function exportStoryToWebM(
 
   const ctx = recordCanvas.getContext('2d', { alpha: false });
   if (ctx) {
-    // Tenter immédiatement une première copie du canevas pour éviter un fond noir par défaut
+    // Tenter immédiatement une première copie homothétique du canevas pour éviter un fond noir par défaut
     try {
+      ctx.fillStyle = '#070b14';
+      ctx.fillRect(0, 0, width, height);
       if (mapCanvas && mapCanvas.width > 0 && mapCanvas.height > 0) {
-        ctx.drawImage(mapCanvas, 0, 0, width, height);
-      } else {
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, 0, width, height);
+        const mapAspect = mapCanvas.width / mapCanvas.height;
+        const targetAspect = width / height;
+        let dW = width;
+        let dH = height;
+        let dX = 0;
+        let dY = 0;
+        if (mapAspect > targetAspect) {
+          dH = Math.round(width / mapAspect);
+          dY = Math.round((height - dH) / 2);
+        } else {
+          dW = Math.round(height * mapAspect);
+          dX = Math.round((width - dW) / 2);
+        }
+        ctx.drawImage(mapCanvas, dX, dY, dW, dH);
       }
     } catch {
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = '#070b14';
       ctx.fillRect(0, 0, width, height);
     }
   }
@@ -647,7 +783,8 @@ export async function exportStoryToWebM(
     }
   };
 
-  const { totalDurationMs, totalScenes } = estimateVideoDuration(story);
+  const timeline = options?.timeline;
+  const { totalDurationMs, totalScenes } = estimateVideoDuration(story, timeline);
   const estimatedTotalChunks = Math.max(10, Math.round(totalDurationMs / 100));
   const startTime = Date.now();
 
@@ -679,9 +816,29 @@ export async function exportStoryToWebM(
   const updateCleanMapBuffer = () => {
     if (!cleanMapCtx || !mapCanvas || mapCanvas.width === 0 || mapCanvas.height === 0) return;
     try {
-      cleanMapCtx.fillStyle = '#0f172a';
+      cleanMapCtx.fillStyle = '#070b14';
       cleanMapCtx.fillRect(0, 0, width, height);
-      cleanMapCtx.drawImage(mapCanvas, 0, 0, width, height);
+
+      const mapW = mapCanvas.width;
+      const mapH = mapCanvas.height;
+      const mapAspect = mapW / mapH;
+      const targetAspect = width / height;
+
+      let dW = width;
+      let dH = height;
+      let dX = 0;
+      let dY = 0;
+
+      // Préservation absolue du ratio d'aspect 1:1 pour éviter toute anamorphose du globe
+      if (mapAspect > targetAspect) {
+        dH = Math.round(width / mapAspect);
+        dY = Math.round((height - dH) / 2);
+      } else {
+        dW = Math.round(height * mapAspect);
+        dX = Math.round((width - dW) / 2);
+      }
+
+      cleanMapCtx.drawImage(mapCanvas, dX, dY, dW, dH);
       hasCleanMapFrame = true;
     } catch (err) {
       logDiag('CLEAN_MAP_ERROR', 'Erreur copie carte propre:', err);
@@ -726,11 +883,27 @@ export async function exportStoryToWebM(
       if (cleanMapCanvas && hasCleanMapFrame) {
         ctx.drawImage(cleanMapCanvas, 0, 0, width, height);
       } else if (mapCanvas && mapCanvas.width > 0 && mapCanvas.height > 0) {
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = '#070b14';
         ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(mapCanvas, 0, 0, width, height);
+
+        const mapAspect = mapCanvas.width / mapCanvas.height;
+        const targetAspect = width / height;
+        let dW = width;
+        let dH = height;
+        let dX = 0;
+        let dY = 0;
+
+        if (mapAspect > targetAspect) {
+          dH = Math.round(width / mapAspect);
+          dY = Math.round((height - dH) / 2);
+        } else {
+          dW = Math.round(height * mapAspect);
+          dX = Math.round((width - dW) / 2);
+        }
+
+        ctx.drawImage(mapCanvas, dX, dY, dW, dH);
       } else {
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = '#070b14';
         ctx.fillRect(0, 0, width, height);
       }
 
@@ -813,6 +986,9 @@ export async function exportStoryToWebM(
   }, 100);
 
   let recorder: MediaRecorder;
+  let audioContext: AudioContext | null = null;
+  let audioHandle: AudioPlaybackHandle | null = null;
+  let effectiveStream: MediaStream = stream;
 
   try {
     // 1. Stabilisation initiale
@@ -837,85 +1013,342 @@ export async function exportStoryToWebM(
     }
     logDiag('FIRST_FRAME', `Première frame copiée : framesCopied=${framesCopied} après ${frameWaitAttempts} tentatives.`);
 
-    // ── Étape 5 : Vérification robuste du support codec réel ──
-    const mimeType = await getVerifiedMimeType();
-    logDiag('CODEC', `Codec vérifié sélectionné : ${mimeType || '(défaut navigateur)'}`);
+    // ── Configuration Mixage Audio Web Audio si des pistes audio existent ──
+    const hasAudioClips = Boolean(timeline?.audioTracks && timeline.audioTracks.length > 0 && timeline.audioTracks.some(a => !a.muted));
+    let hasEffectiveAudio = false;
+    let audioDestinationNode: MediaStreamAudioDestinationNode | null = null;
 
-    try {
-      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-    } catch (err) {
-      logDiag('RECORDER_INIT', `Échec avec codec ${mimeType}, repli sur défaut :`, err);
-      recorder = new MediaRecorder(stream);
-    }
-    logDiag('RECORDER_INIT', `MediaRecorder créé — mimeType effectif=${recorder.mimeType}, state=${recorder.state}`);
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        chunks.push(e.data);
-        totalBytes += e.data.size;
-        // Log de diagnostic pour les premiers chunks et tous les 20 chunks
-        if (chunks.length <= 3 || chunks.length % 20 === 0) {
-          logDiag('CHUNK', `#${chunks.length} — taille=${e.data.size} octets, total=${totalBytes} octets`);
+    if (hasAudioClips && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          audioContext = new AudioCtx();
+          audioDestinationNode = audioContext.createMediaStreamDestination();
+          const mixedAudioTracks = audioDestinationNode.stream.getAudioTracks();
+          if (mixedAudioTracks.length > 0) {
+            effectiveStream = new MediaStream([...stream.getVideoTracks(), ...mixedAudioTracks]);
+            hasEffectiveAudio = true;
+            logDiag('AUDIO_MIX', `Piste audio configurée avec succès (${mixedAudioTracks.length} piste(s) active(s)).`);
+          }
+        } catch (err) {
+          logDiag('AUDIO_MIX_ERROR', 'Erreur initialisation mixage audio MediaStream:', err);
         }
       }
-    };
+    }
 
-    // Démarrer l'enregistrement continu en tranches de 250ms pour une grande régularité
-    recorder.start(250);
-    logDiag('RECORDING_START', `Enregistrement démarré (tranches 250ms, fps=${fps})`);
+    // ── Étape 5 : Vérification robuste du support codec réel adapté aux pistes ──
+    const mimeType = await getVerifiedMimeType(hasEffectiveAudio);
+    logDiag('CODEC', `Codec vérifié sélectionné : ${mimeType || '(défaut navigateur)'} (audio=${hasEffectiveAudio})`);
+
+    // ── Démarrage résilient du MediaRecorder avec cascade de repli sur start() ──
+    const candidatesToTry: (string | undefined)[] = [
+      mimeType,
+      ...(hasEffectiveAudio ? CODEC_CASCADE_AUDIO : CODEC_CASCADE_VIDEO_ONLY),
+      hasEffectiveAudio ? 'video/webm' : undefined,
+      undefined
+    ];
+    const uniqueCandidates = Array.from(new Set(candidatesToTry));
+    let started = false;
+
+    for (const candidate of uniqueCandidates) {
+      try {
+        const rec = candidate
+          ? new MediaRecorder(effectiveStream, { mimeType: candidate })
+          : new MediaRecorder(effectiveStream);
+
+        rec.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunks.push(e.data);
+            totalBytes += e.data.size;
+            if (chunks.length <= 3 || chunks.length % 20 === 0) {
+              logDiag('CHUNK', `#${chunks.length} — taille=${e.data.size} octets, total=${totalBytes} octets`);
+            }
+          }
+        };
+
+        // Démarrer l'enregistrement en tranches de 250ms
+        rec.start(250);
+        recorder = rec;
+        started = true;
+        logDiag('RECORDING_START', `Enregistrement démarré avec succès — mimeType="${recorder.mimeType || candidate || 'défaut'}", tranches 250ms, fps=${fps}, audio=${hasEffectiveAudio}`);
+        break;
+      } catch (startErr) {
+        logDiag('RECORDER_START_FAILED', `Échec start() pour candidate="${candidate}", essai du suivant dans la cascade :`, startErr);
+      }
+    }
+
+    if (!started || !recorder!) {
+      throw new Error(`MediaRecorder.start: Impossible de démarrer l'enregistrement vidéo${hasEffectiveAudio ? ' avec piste audio' : ''}. Aucun codec compatible n'a pu être initialisé.`);
+    }
+
+    const recordingStartTime = Date.now();
+
+    // Démarrage de la lecture audio Web Audio synchronisée EXACTEMENT à t=0ms de l'enregistrement
+    if (audioContext && audioDestinationNode && timeline?.audioTracks && timeline.audioTracks.length > 0) {
+      try {
+        audioHandle = scheduleAudioTracks(
+          audioContext,
+          audioDestinationNode,
+          timeline.audioTracks,
+          (clip) => options?.audioBuffersMap?.get(clip.id) || clip.audioBuffer
+        );
+        logDiag('AUDIO_PLAYBACK_START', `Lecture audio synchronisée lancée au top départ de la capture vidéo.`);
+      } catch (audioErr) {
+        logDiag('AUDIO_PLAYBACK_ERR', 'Erreur lors du démarrage du mixage audio:', audioErr);
+      }
+    }
+
     phase = 'capturing';
 
+    const scheduledSteps = timeline ? buildScheduledVideoSteps(timeline, story) : null;
+    const stepsCount = scheduledSteps ? scheduledSteps.length : totalScenes;
+
     // 2. Boucle de capture des scènes et périodes ordonnées
-    for (let i = 0; i < totalScenes; i++) {
+    for (let i = 0; i < stepsCount; i++) {
       currentSceneIdx = i;
-      const scene = story.scenes[i];
-      const prevScene = i > 0 ? story.scenes[i - 1] : undefined;
-      const periodNum = scene.periodNumber || (i + 1);
-      const totalP = scene.totalPeriods || totalScenes;
-      const sceneTitle = scene.title || `Période ${periodNum}/${totalP}`;
-      const targetYear = scene.mapState.timelineYear;
+      let scene: StoryScene;
+      let prevScene: StoryScene | undefined;
+      let periodNum: number;
+      let totalP: number;
+      let sceneTitle: string;
+      let targetYear: number | undefined;
+      let transitionToPlay: any;
+
+      if (scheduledSteps) {
+        const step = scheduledSteps[i];
+        const prevStep = i > 0 ? scheduledSteps[i - 1] : undefined;
+        periodNum = step.periodNumber;
+        totalP = step.totalPeriods;
+        sceneTitle = step.title;
+        targetYear = step.timelineYear;
+        transitionToPlay = step.transition;
+        scene = {
+          id: step.sceneId || step.clipId,
+          title: step.title,
+          periodNumber: step.periodNumber,
+          totalPeriods: step.totalPeriods,
+          mapState: step.mapState,
+          layout: 'split',
+          transition: step.transition
+        };
+        prevScene = prevStep ? {
+          id: prevStep.sceneId || prevStep.clipId,
+          title: prevStep.title,
+          mapState: prevStep.mapState,
+          layout: 'split',
+          transition: prevStep.transition
+        } : undefined;
+      } else {
+        scene = story.scenes[i];
+        prevScene = i > 0 ? story.scenes[i - 1] : undefined;
+        periodNum = scene.periodNumber || (i + 1);
+        totalP = scene.totalPeriods || totalScenes;
+        sceneTitle = scene.title || `Période ${periodNum}/${totalP}`;
+        targetYear = scene.mapState.timelineYear;
+        transitionToPlay = scene.transition || { profile: 'standard', durationMode: 'auto', pauseAfterMs: 800, reduceMotionPolicy: 'essential-for-export' };
+      }
 
       // 2.0 Mise à jour des informations de légende pour cette période
       updateLegendForPeriod(scene, i);
 
-      // 2.1 Positionnement temporel de la période & mise à jour synchrone des entités
-      if (targetYear !== undefined) {
-        currentSubStep = `Positionnement temporel sur la Période ${periodNum}/${totalP} (${targetYear})…`;
-        setCurrentTime(targetYear);
-        if (options?.updateEntities) {
-          options.updateEntities(targetYear);
+      const step = scheduledSteps ? scheduledSteps[i] : null;
+
+      if (step?.mediaType === 'image' && step.mediaUrl) {
+        currentSubStep = `Rendu de l'image externe : ${sceneTitle}…`;
+        try {
+          const img = new Image();
+          img.src = step.mediaUrl;
+          await new Promise<void>((resolve) => {
+            if (img.complete) resolve();
+            else {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            }
+          });
+
+          if (cleanMapCtx) {
+            cleanMapCtx.fillStyle = '#0a0e1a';
+            cleanMapCtx.fillRect(0, 0, width, height);
+            const imgAspect = (img.width || 1) / (img.height || 1);
+            const canvasAspect = width / height;
+            let drawW = width;
+            let drawH = height;
+            let drawX = 0;
+            let drawY = 0;
+            if (imgAspect > canvasAspect) {
+              drawH = width / imgAspect;
+              drawY = (height - drawH) / 2;
+            } else {
+              drawW = height * imgAspect;
+              drawX = (width - drawW) / 2;
+            }
+            cleanMapCtx.drawImage(img, drawX, drawY, drawW, drawH);
+            hasCleanMapFrame = true;
+          }
+
+          const stepDurationMs = step.durationMs;
+          const frameIntervalMs = Math.round(1000 / fps);
+          const totalFrames = Math.max(1, Math.round(stepDurationMs / frameIntervalMs));
+          for (let f = 0; f < totalFrames; f++) {
+            composeVideoFrame();
+            triggerTrackFrame();
+            await new Promise(r => setTimeout(r, frameIntervalMs));
+          }
+        } catch (err) {
+          logDiag('IMAGE_RENDER_ERROR', 'Erreur de rendu image externe:', err);
+        }
+      } else if (step?.mediaType === 'video' && step.mediaUrl) {
+        currentSubStep = `Rendu de la vidéo externe : ${sceneTitle}…`;
+        try {
+          const videoElem = document.createElement('video');
+          videoElem.src = step.mediaUrl;
+          videoElem.muted = true;
+          videoElem.playsInline = true;
+          await new Promise<void>((resolve) => {
+            videoElem.onloadeddata = () => resolve();
+            videoElem.onerror = () => resolve();
+            setTimeout(resolve, 2000);
+          });
+
+          const trimOffsetSec = (step.trimStartMs || 0) / 1000;
+          videoElem.currentTime = trimOffsetSec;
+          try { await videoElem.play(); } catch { /* ignore */ }
+
+          const stepDurationMs = step.durationMs;
+          const frameIntervalMs = Math.round(1000 / fps);
+          const totalFrames = Math.max(1, Math.round(stepDurationMs / frameIntervalMs));
+
+          for (let f = 0; f < totalFrames; f++) {
+            if (cleanMapCtx && videoElem.videoWidth > 0) {
+              cleanMapCtx.fillStyle = '#0a0e1a';
+              cleanMapCtx.fillRect(0, 0, width, height);
+              const vAspect = videoElem.videoWidth / (videoElem.videoHeight || 1);
+              const cAspect = width / height;
+              let dW = width;
+              let dH = height;
+              let dX = 0;
+              let dY = 0;
+              if (vAspect > cAspect) {
+                dH = width / vAspect;
+                dY = (height - dH) / 2;
+              } else {
+                dW = height * vAspect;
+                dX = (width - dW) / 2;
+              }
+              cleanMapCtx.drawImage(videoElem, dX, dY, dW, dH);
+              hasCleanMapFrame = true;
+            }
+            composeVideoFrame();
+            triggerTrackFrame();
+            await new Promise(r => setTimeout(r, frameIntervalMs));
+          }
+          videoElem.pause();
+          videoElem.remove();
+        } catch (err) {
+          logDiag('VIDEO_RENDER_ERROR', 'Erreur de rendu vidéo externe:', err);
+        }
+      } else {
+        const stepStartTime = Date.now();
+        const pauseDuration = transitionToPlay?.pauseAfterMs ?? 800;
+        const stepTargetDurationMs = step ? step.durationMs : ((transitionToPlay?.durationMs || 2400) + pauseDuration);
+
+        // 2.1 Positionnement temporel de la période & mise à jour synchrone des entités
+        if (targetYear !== undefined) {
+          currentSubStep = `Positionnement temporel sur la Période ${periodNum}/${totalP} (${targetYear})…`;
+          setCurrentTime(targetYear);
+          if (options?.updateEntities) {
+            options.updateEntities(targetYear);
+          }
+        }
+
+        // 2.2 Animation caméra vers la scène (avec garantie canonique du cap 180° Sud pour Al-Idrisi)
+        currentSubStep = `Animation caméra vers ${sceneTitle}…`;
+        const effectiveBasemapStyle = scene.mapState?.basemapStyle || options?.basemapStyle;
+        const normalizedBearing = getEffectiveStyleBearing(effectiveBasemapStyle, scene.mapState?.bearing);
+        const effectiveToState = scene.mapState ? {
+          ...scene.mapState,
+          bearing: normalizedBearing,
+          basemapStyle: effectiveBasemapStyle
+        } : scene.mapState;
+
+        await playSceneTransition(
+          map,
+          transitionToPlay,
+          prevScene?.mapState,
+          effectiveToState,
+          true // isExport = true
+        );
+
+        // 2.3 Algorithme de vérification de la présence et de la capture des entités cartographiées
+        currentSubStep = `Vérification des entités cartographiées [Période ${periodNum}/${totalP}]…`;
+        const verification = await verifyAndCapturePeriodEntities(
+          map,
+          targetYear ?? 0,
+          periodNum,
+          totalP,
+          options,
+          () => framesCopied,
+          triggerTrackFrame,
+          fps
+        );
+
+        logDiag('PERIOD_VERIFIED', `Période ${periodNum}/${totalP} validée : ${verification.detectedCount} entités, ${verification.framesCaptured} trames.`);
+        currentSubStep = `Période ${periodNum}/${totalP} validée : ${verification.detectedCount} entités vérifiées (${verification.framesCaptured} trames enregistrées).`;
+
+        // 2.4 Maintien actif et enregistrement du cadrage pour couvrir l'intégralité de la durée prévue du plan
+        const stepElapsed = Date.now() - stepStartTime;
+        const remainingMs = Math.max(0, stepTargetDurationMs - stepElapsed);
+        if (remainingMs > 0) {
+          const frameIntervalMs = Math.round(1000 / fps);
+          const remainingFrames = Math.max(1, Math.round(remainingMs / frameIntervalMs));
+          for (let f = 0; f < remainingFrames; f++) {
+            composeVideoFrame();
+            triggerTrackFrame();
+            await new Promise(r => setTimeout(r, frameIntervalMs));
+          }
         }
       }
+    }
 
-      // 2.2 Animation caméra vers la scène
-      currentSubStep = `Animation caméra vers ${sceneTitle}…`;
-      await playSceneTransition(
-        map,
-        scene.transition || { profile: 'standard', durationMode: 'auto', pauseAfterMs: 800, reduceMotionPolicy: 'essential-for-export' },
-        prevScene?.mapState,
-        scene.mapState,
-        true // isExport = true
-      );
+    // 2.5 Outro Buffer & Maintien de complétude pour le cadrage final et la bande sonore
+    const totalVideoPlannedMs = scheduledSteps
+      ? scheduledSteps.reduce((sum, s) => sum + s.durationMs, 0)
+      : totalDurationMs;
+    const maxAudioPlannedMs = timeline?.audioTracks?.reduce((max, a) => {
+      return a.muted ? max : Math.max(max, (a.startMs || 0) + a.durationMs);
+    }, 0) || 0;
 
-      // 2.3 Algorithme de vérification de la présence et de la capture des entités cartographiées
-      currentSubStep = `Vérification des entités cartographiées [Période ${periodNum}/${totalP}]…`;
-      const verification = await verifyAndCapturePeriodEntities(
-        map,
-        targetYear ?? 0,
-        periodNum,
-        totalP,
-        options,
-        () => framesCopied,
-        triggerTrackFrame,
-        fps
-      );
+    // Buffer de sécurité de fin (au moins 1200ms après la dernière scène pour que le plan final et l'éventuel fondu sonore soient savourés)
+    const requiredTotalDurationMs = Math.max(totalVideoPlannedMs, maxAudioPlannedMs) + 1200;
+    const totalElapsedSoFarMs = Date.now() - recordingStartTime;
+    const tailRemainingMs = Math.max(0, requiredTotalDurationMs - totalElapsedSoFarMs);
 
-      logDiag('PERIOD_VERIFIED', `Période ${periodNum}/${totalP} validée : ${verification.detectedCount} entités, ${verification.framesCaptured} trames.`);
-      currentSubStep = `Période ${periodNum}/${totalP} validée : ${verification.detectedCount} entités vérifiées (${verification.framesCaptured} trames enregistrées).`;
-
-      // 2.4 Pause narrative stabilisée pour lecture des entités
-      const pauseDuration = scene.transition?.pauseAfterMs ?? 800;
-      await new Promise((r) => setTimeout(r, pauseDuration));
+    if (tailRemainingMs > 0) {
+      logDiag('TAIL_HOLD', `Maintien du cadrage final et complétude audio : ${tailRemainingMs}ms (vidéo=${totalVideoPlannedMs}ms, audio=${maxAudioPlannedMs}ms)`);
+      currentSubStep = `Maintien du plan final et achèvement du son (${(tailRemainingMs / 1000).toFixed(1)}s)…`;
+      notify({
+        phase: 'capturing',
+        percent: 88,
+        generationPercent: 100,
+        encodingPercent: Math.min(85, Math.round(((Date.now() - startTime) / (totalDurationMs + tailRemainingMs)) * 100)),
+        currentSceneIndex: totalScenes,
+        totalScenes,
+        currentSceneTitle: 'Maintien Cadrage Final',
+        subStepMessage: currentSubStep,
+        elapsedMs: Date.now() - startTime,
+        estimatedRemainingMs: tailRemainingMs,
+        estimatedTotalDurationMs: totalDurationMs + tailRemainingMs,
+        recordedBytes: totalBytes,
+        chunkCount: chunks.length,
+        statusMessage: `Complétude garantie : maintien du plan final et fondu audio…`
+      });
+      const frameIntervalMs = Math.round(1000 / fps);
+      const tailFrames = Math.max(1, Math.round(tailRemainingMs / frameIntervalMs));
+      for (let f = 0; f < tailFrames; f++) {
+        composeVideoFrame();
+        triggerTrackFrame();
+        await new Promise(r => setTimeout(r, frameIntervalMs));
+      }
     }
 
     // 3. Phase d'Encodage et Finalisation
@@ -932,9 +1365,9 @@ export async function exportStoryToWebM(
         // Ignorer
       }
     }
-    // Délai de 200ms pour laisser le temps au dernier chunk d'être émis via ondataavailable
-    await new Promise(r => setTimeout(r, 200));
-    logDiag('POST_REQUEST_DATA', `Après délai 200ms — chunks=${chunks.length}, totalBytes=${totalBytes}`);
+    // Délai de 250ms pour laisser le temps au dernier chunk d'être émis via ondataavailable
+    await new Promise(r => setTimeout(r, 250));
+    logDiag('POST_REQUEST_DATA', `Après délai 250ms — chunks=${chunks.length}, totalBytes=${totalBytes}`);
 
     const preStopEncPct = Math.min(90, chunks.length > 0 ? Math.max(1, Math.round((chunks.length / estimatedTotalChunks) * 100)) : 85);
     notify({
@@ -1097,8 +1530,22 @@ export async function exportStoryToWebM(
         // Ignorer
       }
     }
+    if (audioHandle) {
+      try {
+        audioHandle.stopAll();
+      } catch {
+        // Ignorer
+      }
+    }
+    if (audioContext && audioContext.state !== 'closed') {
+      try {
+        audioContext.close();
+      } catch {
+        // Ignorer
+      }
+    }
     try {
-      stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+      effectiveStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
     } catch {
       // Ignorer
     }
@@ -1115,4 +1562,31 @@ export async function exportStoryToWebM(
       cleanMapCanvas.height = 0;
     }
   }
+}
+
+/**
+ * Exporte une vidéo à partir d'un plan de montage EditTimeline enrichi (durées étendues, audio multi-pistes).
+ */
+export async function exportEditTimelineToWebM(
+  worldName: string,
+  story: StoryProject,
+  timeline: EditTimeline,
+  map: any,
+  setCurrentTime: (year: number) => void,
+  progressCallback?: VideoProgressCallback | ((pct: number) => void),
+  fps: number = 30,
+  options?: VideoExportOptions
+): Promise<void> {
+  return exportStoryToWebM(
+    worldName,
+    story,
+    map,
+    setCurrentTime,
+    progressCallback,
+    fps,
+    {
+      ...options,
+      timeline
+    }
+  );
 }

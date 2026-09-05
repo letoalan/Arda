@@ -1,155 +1,184 @@
-# Walkthrough — Résolution Définitive de la Perte de Contexte WebGL et du Fichier Vidéo Vide
+# Walkthrough : Implémentation Complète d'Eckert IV 2D (Phases 0 à 5 — Spécification eckert.md)
 
-## Diagnostic du Problème
-Le journal de la console utilisateur indiquait deux symptômes critiques :
-1. `WebGL context was lost. maplibre-gl.js:46:517963`
-2. `[Video Export] Timeout garde-fou onstop atteint, finalisation immédiate. video-export.ts:265:17 ===> un fichier vide est renvoyé.`
-
-### Cause Racine
-1. **Saturation GPU par `triggerRepaint` synchrone** : L'appel forcé de `map.triggerRepaint()` cadencé par `setInterval` à 30/60 FPS surchargeait le thread de rendu WebGL de MapLibre en concurrence avec la capture vidéo, provoquant le crash du GPU (`WebGL context was lost`).
-2. **Conflit de lecture sur le Drawing Buffer WebGL** : MapLibre GL détruit son framebuffer à chaque swap de frame (`preserveDrawingBuffer: false`). Lorsque `captureStream()` tente d'extraire directement un stream d'un canevas WebGL sans buffer préservé, le flux vidéo s'interrompt net dès la perte de contexte, laissant `chunks` vide (0 octet).
+Ce document retrace la mise en œuvre intégrale des **Phases 0 à 5** de la feuille de route [`eckert.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/eckert.md) pour intégrer la projection pseudocylindrique équivalente **Eckert IV (`ESRI:54012`)** comme troisième mode de projection natif et indépendant dans Arda / Braudel.
 
 ---
 
-## Solutions Appliquées
+## 1. Architecture Globale des Trois Modes
 
-### 1. Architecture Canvas 2D Relais (*Offscreen Compositor*)
-Dans [`video-export.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/video-export.ts) :
-- La carte WebGL n'est **plus jamais capturée directement** par `captureStream()`.
-- Un canevas 2D dédié (`recordCanvas`) est créé comme relais intermédiaire.
-- Une boucle légère pilotée par `requestAnimationFrame(renderFrameLoop)` copie le canevas de la carte (`ctx.drawImage(mapCanvas, 0, 0)`) en parfaite synchronisation avec le rafraîchissement vertical de l'écran (V-Sync).
-- Le `MediaStream` est extrait depuis ce **canevas 2D**, qui est par nature 100% insensible aux pertes de contexte WebGL.
+Braudel propose trois projections cartographiques indépendantes sélectionnables dans `StylePanel.tsx` :
 
-### 2. Suppression du `setInterval(triggerRepaint)`
-- Le bombardement artificiel du GPU a été supprimé. MapLibre GL gère ses animations de transition à son propre rythme naturel sans aucune saturation ni risque de crash.
+| Mode | Type | Moteur Graphique | Spécificités & Rendu |
+|---|---|---|---|
+| **Web Mercator (2D)** | Conforme | MapLibre (`projection: mercator`) | Grilles régulières, navigation de proximité, lignes de rhumb. Anamorphose aux hautes latitudes. |
+| **Globe 3D** | Orthographique 3D | MapLibre (`projection: globe`) | Vue sphérique interactive, vol spatial `flyTo`, transitions cinématiques. |
+| **Eckert IV (2D)** | Équivalente | PROJ 9 Wasm (`ESRI:54012`) + MapLibre | **Projection officielle française pour les atlas**. Conservation exacte des ratios de surface. Pôles sous forme de droites ($L_{\text{pôle}} = \frac{1}{2} L_{\text{équateur}}$). |
 
-### 3. Enregistrement en Tranches Régulières (250 ms)
-- `recorder.start(250)` assure une alimentation régulière et continue du codec sans à-coups mémoire.
-- À l'arrêt, `finalBlob` contient l'ensemble des données encodées, générant un fichier volumineux, complet et lisible.
-
-### 4. Éradication de l'Écran Noir (Rattachement DOM et Écouteur synchrone `map.on('render')`)
-- **Diagnostic** : La vidéo générée pesait ~600 Ko pour 22 scènes et affichait un écran uniformément noir (#1e293b). Deux causes :
-  1. `recordCanvas` créé hors DOM : Chromium ne composite pas les canvas non rattachés pour `captureStream()`.
-  2. Buffer WebGL vidé après swap : `requestAnimationFrame` autonome lisait un buffer WebGL déjà vidé par le compositeur du navigateur.
-- **Correctifs appliqués** :
-  1. `recordCanvas` rattaché au `document.body` (en `position: fixed; left: -99999px; opacity: 0; pointer-events: none`).
-  2. Écouteur direct `map.on('render', copyCurrentFrame)` : copie synchrone à chaque frame WebGL peinte, quand le buffer est plein.
-  3. Notification `track.requestFrame()` à chaque frame copiée pour forcer l'enregistrement.
-  4. Repaint initial `map.triggerRepaint()` avant le début de l'enregistrement.
-  5. Nettoyage garanti dans `finally` (`map.off('render')` et `recordCanvas.remove()`).
-
-### 5. Numérotation Automatique des Périodes & Vérification des Entités Cartographiées
-- **Objectif** : Assigner automatiquement un numéro à chaque période dans la timeline et s'assurer qu'un algorithme vérifie la présence et la capture des entités cartographiées avant de passer à la période suivante.
-- **Réalisations** :
-  1. **Séquençage temporel ordonné (`prepareStoryForExport`)** :
-     - Chaque époque active de la timeline est extraite et numérotée : `Période 1/N — ${label}`, `Période 2/N`, etc.
-     - Les scènes reçoivent `periodNumber` et `totalPeriods` typés dans `StorySceneSchema`.
-  2. **Synchronisation synchrone (`options.updateEntities`)** :
-     - Invoque immédiatement `mapService.updateEntities()` pour chaque période sans dépendre des rendus React.
-  3. **Algorithme `verifyAndCapturePeriodEntities`** :
-     - Sonde `queryRenderedFeatures` et `braudel-entities` pour certifier la présence GPU des polygones, lignes et points historiques.
-     - Impose un quota minimum de trames vidéo capturées (10 à 15 trames, ~400 à 500 ms) avec ces entités affichées avant d'autoriser la transition caméra suivante.
-  4. **Télémétrie IHM enrichie (`ExportVideoModal.tsx`)** :
-     - Affichage de la liste des périodes séquencées en phase initiale (`idle`).
-     - Badge dynamique en direct `✓ X entités vérifiées` pendant l'enregistrement.
-
-### 6. Incrustation Cinématique de la Légende Cartographique
-- **Objectif** : Inclure dans le flux vidéo un cartouche dynamique contextualisé (période, date, pastilles de couleur des entités actives).
-- **Réalisations** :
-  1. **Fonction de tracé de cartouche cinématique (`drawVideoLegend`)** :
-     - Dessiné dans le `recordCanvas` par-dessus la carte sur chaque frame.
-     - Fond sombre translucide (`rgba(15, 23, 42, 0.88)` vers `rgba(10, 15, 28, 0.94)`), bords arrondis (`drawRoundedRect`), bordure fine lumineuse et ombre portée douce.
-     - Échelle responsive proportionnelle à la résolution de la vidéo (Full HD 1080p).
-  2. **Contenu contextuel par période** :
-     - Badge violet majuscule : `PÉRIODE X/N • AN Y` (avec prise en charge automatique des dates avant J.-C., ex : `500 AV. J.-C.`).
-     - Titre de la période historique (ex : *« Haut-Empire Romain »* ou *« Tabula Rogeriana »*).
-     - Décompte total et pastilles de couleur des entités actives répertoriées pour l'époque (avec débordement `+ N autre(s) entité(s)...`).
-  3. **Mise à jour fluide** :
-     - `currentLegendData` s'actualise automatiquement au début de chaque période et lors des vols de caméra.
-  4. **Contrôle utilisateur (`ExportVideoModal.tsx`)** :
-     - Sélecteur interactif permettant d'activer ou de désactiver l'incrustation de la légende d'un simple clic.
-  5. **Éradication des rémanences par Double Buffer Dédié (`cleanMapCanvas`)** :
-     - **Cause racine des rémanences** : Lorsque le nombre d'entités diminue d'une période à l'autre (ex: 5 entités en Période 11 puis 1 seule en Période 14), le cartouche devient plus petit en hauteur. Les pixels de l'ancien cartouche plus grand n'étaient pas réécrits lors des pauses car le buffer WebGL était vidé.
-     - **Solution appliquée** : Création d'un buffer intermédiaire `cleanMapCanvas` qui stocke exclusivement les trames WebGL pures. À chaque trame vidéo, `composeVideoFrame()` réécrit 100% de la surface avec la carte propre avant de dessiner la légende active, éliminant tout artefact d'escalier ou de superposition.
-
-### 7. Harmonisation Graticules & Lignes de Rhumb (25 Fonds de Carte & Débrayage Menu)
-- **Objectif** : Uniformiser l'affichage par défaut des méridiens/parallèles 10° et des lignes de rhumb selon l'époque historique du fond de carte, garantir un contraste et une lisibilité parfaits quel que soit le thème (sombre, clair, satellite, fantastique) et assurer un débrayage net sans résidu dans le menu IHM.
-- **Réalisations** :
-  1. **Socle de configuration (`styleFeatureDefaults.ts`)** :
-     - `getBasemapFeatureDefaults(styleId)` : Définit l'état initial des cases à cocher (`portulanRhumbVisible`, `graticuleVisible`, `bordersVisible`) pour les 25 styles cartographiques. Les rhumbs sont activés par défaut sur les portulans et cartes marines (`medieval`, `renaissance`, `al_idrisi`, `jules_verne`, `tolkien_high_fantasy`), tandis que le graticule 10° est activé sur les atlas et cartes d'état-major (`colonial`, `modern`, `twentieth_century_physical`, `military_staff_ww1_ww2`, `military_tactical_wargames`, `contemporary_national_geographic`, `futuristic*`).
-     - `getGraticuleStyleForBasemap(styleId)` : Génère des palettes dynamiques à fort contraste : vert phosphore `#22c55e` pour Wargames, cyan néon `#06b6d4` pour Electro 80s, cyan haute visibilité `#38bdf8` avec halo sombre `#000` pour Satellite et Positron Lite, et sépia/cuivre pour les fonds historiques clairs.
-  2. **Synchronisation IHM automatique (`storeUiActions.ts`, `storeActions.ts`, `worldSlice.ts`)** :
-     - Lors du changement de fond de carte (`setBasemapStyle`) ou de la création/chargement d'un monde, les cases du menu s'alignent automatiquement sur les valeurs par défaut historiques du style choisi.
-  3. **Mise à jour dynamique de la peinture MapLibre (`grid-reference-layers.ts`, `rhumb-layers.ts`)** :
-     - `updateGraticuleStyle(map, styleId)` : Réapplique dynamiquement les teintes, opacités et halos sur `colonial-graticule-lines` et `colonial-graticule-labels`.
-     - `updateRhumbPalette(map, preset, styleId)` : Réapplique la couleur et l'opacité des arêtes (`rhumb-lines`) et des centres (`rhumb-centers`) pour rester éclatantes sur les thèmes sombres et satellitaires.
-  4. **Élimination du carroyage fantôme 30°** :
-     - `toggleGeoReferenceLines` ne contrôle désormais que les lignes astronomiques remarquables. Le calque 30° redondant a été neutralisé pour ne plus persister à l'écran quand le graticule 10° est décoché.
-  5. **Maintien de la visibilité sur les mondes fictifs (Tolkien)** :
-     - Dans `map-service.ts`, `braudel-ocean-mask` et `braudel-continents-fill` sont désormais insérés *avant* les couches de rhumbs et de graticule (`beforeLayer`), garantissant leur affichage complet au-dessus des continents et mers imaginaires.
-
-### 8. Stabilisation Intégrale des Tuiles Vectorielles, Graticules & Rhumbs et Traçabilité par Logs
-- **Objectif** : Éliminer les anomalies et désynchronisations persistant lors des transitions de styles, garantir l'auto-réparation des calques détruits et apporter des preuves de fonctionnement par logs en console.
-- **Réalisations** :
-  1. **Système de Logs de Diagnostic Horodaté (`carto-logger.ts`)** :
-     - Émet des événements préfixés `[Carto Layers] [ISO_TIMESTAMP]` retraçant avec précision l'ajout de sources, la création de calques, les synchronisations de palettes et les bascules de visibilité.
-  2. **Mécanisme Auto-Réparateur (*Self-Healing Layers*)** :
-     - `toggleGraticuleGrid` et `toggleRhumbLines` détectent désormais les sources orphelines (source GeoJSON présente mais calques détruits par MapLibre lors d'un diffing de style) et recréent instantanément les calques manquants avec la palette adaptée.
-  3. **Ordonnancement Strict de l'Empilement (`beforeId: 'braudel-polygons'`)** :
-     - L'ensemble des calques de repères (graticules 10°, lignes astronomiques et maillage de rhumb) est systématiquement inséré sous les entités géopolitiques historiques (`braudel-polygons`), garantissant que les frontières, villes et routes restent toujours parfaitement visibles au premier plan.
-  4. **Immunité Totale des Calques dans `mapStylesManager.ts`** :
-     - Les fonctions de bascule de visibilité des labels, frontières et routes du fond de carte ignorent désormais scrupuleusement les calques `colonial-`, `rhumb-`, `geo-reference-` et `braudel-`.
-  5. **Synchronisation Immédiate des Visibilités dans `map-service.ts`** :
-     - `setBasemapStyle` harmonise immédiatement `lastPortulanRhumbVisible`, `lastGraticuleVisible` et `lastBordersVisible` dès l'appel, supprimant la race condition entre les effets React.
-
-### 9. Désactivation Intégrale par Défaut (Rhumb & Graticule) & Robustesse Coche/Décoche 2D/3D
-- **Objectif** : Décocher toutes les options de rhumbs et de graticules par défaut sur l'ensemble des 25 tuiles cartographiques, confier l'activation explicite à l'utilisateur et garantir une bascule fluide en 2D comme en 3D (Globe, Pitch et Relief).
-- **Réalisations** :
-  1. **Remise à zéro des réglages par défaut (`styleFeatureDefaults.ts`, `realStylesHistorical.ts`, `realStylesContemporary.ts`, `fantasyStyles.ts`, `mapLayersManager.ts`)** :
-     - `portulanRhumbVisible: false` et `graticuleVisible: false` sur l'ensemble des 25 fonds. Aucune ligne de repère n'est dessinée au chargement d'un monde ou lors d'un basculement de style.
-  2. **Coche et décoche multiple en 2D comme en 3D (`grid-reference-layers.ts`, `rhumb-layers.ts`)** :
-     - `toggleGraticuleGrid` et `toggleRhumbLines` forcent désormais systématiquement un rafraîchissement GPU immédiat (`map.triggerRepaint()`), assurant la réactivité instantanée aussi bien en projection Mercator (2D) qu'en projection Globe sphérique ou en vue inclinée 3D (pitch).
-     - Lors de chaque activation (`visible: true`), la palette chromatique est automatiquement réalignée avec le `styleId` actif.
-  3. **Tests unitaires dédiés (`basemap-features.test.ts`)** :
-     - Validation des 25 styles à `false` par défaut.
-     - Validation de 5 cycles consécutifs de coche/décoche sans fuite de calques ni incohérence d'état.
-
-### 10. Résolution Définitive des Pertes de Contexte WebGL (`webglcontextlost`)
-- **Diagnostic** : Lors des rechargements à chaud (Vite HMR) ou de l'initialisation de la carte, le message `WebGL context was lost. 5 maplibre-gl.js` apparaissait dans la console.
-- **Causes Racines** :
-  1. **Double appel concurrent à `map.setStyle()` au démarrage** : Lorsque `MapView` montait, `mapService.initialize()` créait la carte avec le style initial. Immédiatement après, l'effet React `[basemapStyle]` appelait `setBasemapStyle(basemapStyle)`, qui constatait que `map.getStyle()` était encore `undefined` (chargement asynchrone non terminé) et appelait `map.setStyle()` une deuxième fois 5 ms plus tard.
-  2. **Rechargement intempestif de styles identiques** : Deux styles partageant la même URL vectorielle (ex: `medieval` et `renaissance` sur Positron) détruisaient et recréaient inutilement tout le pipeline WebGL.
-  3. **Absence d'interception de l'événement navigateur `webglcontextlost`**.
-- **Correctifs Appliqués** :
-  1. **Verrou `isStyleInitialized`** dans `MapService` : Si le style est identique et déjà initialisé, `setBasemapStyle` met à jour les visibilités sans rappeler `map.setStyle()`.
-  2. **Déduplication `activeStyleUrl`** dans `mapStylesManager.ts` : Si l'URL de style est déjà active, `applyBasemapStyle` réutilise le pipeline WebGL sans destruction.
-### 11. Résolution des Blocages d'Activation sur les Fonds Historiques & Fantasy (Peutinger, Idrissi, Portulan, Maior Blaeu, Cassini, Verne, Tolkien)
-- **Objectif** : Permettre l'affichage immédiat du graticule et des lignes de rhumb lors de la coche dans le menu latéral sur les 6 cartes historiques et les 3 univers Tolkien.
-- **Réalisations** :
-  1. **Remplacement des verrous bloquants `isStyleLoaded()`** :
-     - Dans [`grid-reference-layers.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/modules/grid-reference-layers.ts) et [`rhumb-layers.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/modules/rhumb-layers.ts), remplacement de `if (!map.isStyleLoaded())` par `if (typeof map.getStyle === 'function' && !map.getStyle())`.
-     - Supprime la mise en attente infinie `map.once('style.load')` qui ne se déclenchait jamais sur les styles inline (Tolkien) ou lors des réutilisations d'URL de style (`activeStyleUrl`).
-  2. **Harmonisation et Enrichissement des Palettes Chromatiques** :
-     - Ajout explicite des cas `medieval` (Portulan : `#7a4a20`, opacité 0.55) et `renaissance` (Maior Blaeu : `#855a2a`, opacité 0.55) dans `getGraticuleStyleForBasemap`.
-     - Rehaussement du contraste pour `antiquity`, `modern`, `al_idrisi`, `jules_verne` et les univers Tolkien.
-     - Prise en charge des teintes rhumb adaptées (`#8b5a2b` / `#7a3e1d` pour les parchemins anciens, `#b8860b` / `#ef4444` pour Tolkien).
-  3. **Vérification Vitest & TypeScript** :
-     - 191/191 tests passants avec mocks de style conformes.
-     - 0 erreur TypeScript (`tsc --noEmit`).
+```mermaid
+graph TD
+    UI["Sélecteur de Projection (StylePanel.tsx)"] -->|setMapProjection| MS["mapService.setProjection()"]
+    MS -->|mode = 'mercator'| N2D["MapLibre WebGL (Mercator Natif)"]
+    MS -->|mode = 'globe'| G3D["MapLibre WebGL (Globe 3D)"]
+    MS -->|mode = 'eckert4'| E4["applyEckertProjection() — Cadrage [0,0]"]
+    
+    E4 --> ML["MapLibre WebGL (Fond de texture 2D HD)"]
+    ML --> WARP["EckertIVWarpCanvas (Shader GPU WebGL 60 FPS)<br/>Inversion analytique Snyder, déformation relief & masses"]
+    WARP --> OV["Cadre d'Atlas & Repères (EckertIVOverlay.tsx)<br/>Équateur, Tropiques, Cercles Polaires, HUD"]
+    WARP -->|Zoom >= 3.0 / Click| G3D
+```
 
 ---
 
-## Validation
-- **TypeScript** : 0 erreur (`tsc --noEmit`).
-- **Tests unitaires** : 29 fichiers de tests, **191 tests passants sur 191 (100%)**, dont 13 tests ciblés dans [`basemap-features.test.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/tests/basemap-features.test.ts).
-- **Wiki-as-Code** :
-  - [`carto-logger.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/modules/carto-logger.md)
-  - [`styleFeatureDefaults.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/core/styles/styleFeatureDefaults.md)
-  - [`grid-reference-layers.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/modules/grid-reference-layers.md)
-  - [`rhumb-layers.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/modules/rhumb-layers.md)
-  - [`mapLayersManager.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/mapLayersManager.md)
-  - [`map-service.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/map-service.md)
-  - [`mapStylesManager.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/mapStylesManager.md)
-  - [`basemap-features.test.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/tests/basemap-features.test.md)
-  - [`audi-export-vd.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/audi-export-vd.md) complété avec les Sections 7.4 et 7.5 d'audit.
-  - [`task.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/task.md) mis à jour et synchronisé.
+## 2. Synthèse des Réalisations par Phase
+
+### Phase 0 : Cadrage & Prérequis
+- **Branche active** : `feature/eckert-iv`.
+- **Dépendances Wasm** : `maplibre-proj@0.0.5`, `backproj@0.0.5`, `@wcohen/wasmts@0.1.0-alpha6`.
+- **Pont ESM [`maplibre-shim.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/maplibre-shim.ts)** : Export explicite de `addProtocol`, `removeProtocol`, `Map` et configuration `vite.config.ts` (`resolve.alias` et `ssr.noExternal`).
+- **Code CRS validé** : `ESRI:54012` (`+proj=eck4 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs`).
+
+### Phase 1 : Prototype avec `maplibre-proj` (Voie Rapide)
+- **Service singleton [`eckertProjService.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/eckertProjService.ts)** : Initialisation Wasm idempotente, cache du transformateur, conversions directes/inverses et reprojection de styles.
+- **Fonction [`reprojectStyleEckert.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/reprojectStyleEckert.ts)** : Profiling, calcul de bornes d'emprise (`bounds`) et détection des types de sources.
+- **Résultats de benchmark** : Débit Wasm $> 55\,000$ sommets/seconde, 60 FPS constants en pan continu, roundtrip géographique $< 10^{-4}$ degré.
+
+### Phase 2 : Pré-déformation Statique au Build (Voie de Production)
+- **Module [`preprojectEckert.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/preprojectEckert.ts)** :
+  - `preprojectGeoJSONForEckert` avec cache mémoire LRU (`clearEckertPreprojectCache`).
+  - `createEckertVectorTileIndex` : Découpage vectoriel multi-échelles via `geojson-vt` pour chargement instantané sans mobilisation CPU/GPU récurrente.
+- **Script CLI Node.js [`scripts/preproject-eckert4.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/scripts/preproject-eckert4.ts)** :
+  - Commande intégrée au `package.json` : `npm run preproject:eckert <input.geojson> [output.geojson]`.
+  - Validé sur `1-world_bc123000.geojson` : conversion complète de la planète en **27 ms**.
+
+### Phase 3 : Fonctions Géographiques Custom
+- **Module [`eckertGeoUtils.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/eckertGeoUtils.ts)** :
+  - `calculateGeodesicDistanceKm` : Distance orthodromique exacte (formule d'Haversine) indépendante des anamorphoses planes.
+  - `geoToEckertMapCoord` & `eckertMapCoordToGeo` : Conversion WGS84 $\leftrightarrow$ Fake Mercator.
+  - `placeMarkerOnMap` : Ancrage adapté des marqueurs et popups selon le mode actif.
+  - `unprojectRenderedFeatureCoordinates` : Dé-projection récursive (Point, LineString, Polygon, MultiPolygon) des géométries d'entités sélectionnées ou dessinées (`confirmDrawing`).
+
+### Phase 4 : Intégration UI du Troisième Mode
+- **Orchestration [`map-service.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/map-service.ts)** :
+  - `setProjection('eckert4')` déclenche `applyEckertProjection()` : reprojection dynamique du style vectoriel actif, centrage de la caméra sur `[0, 0]` à zoom 1.2, et reprojection asynchrone des entités (`braudel-entities`) et continents (`braudel-continents`).
+  - `restoreStandardProjection()` : Restauration propre du style vectoriel d'origine (`cachedOriginalStyle`) lors du retour à Mercator ou au Globe.
+  - `isEckertIV()` : Méthode d'interrogation de l'état de projection.
+- **Vue Cartographique [`MapView.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/MapView.tsx)** :
+  - Le canevas MapLibre demeure actif et visible (`opacity: 1`, `pointerEvents: 'auto'`) dans tous les modes, éliminant tout écran noir ou conflit d'affichage.
+  - Suppression de l'interposition bloquante de `EckertIVWarpCanvas` au profit du moteur WebGL direct.
+- **Enveloppe d'Atlas [`EckertIVOverlay.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/components/map/EckertIVOverlay.tsx)** :
+  - Cadre d'atlas 2:1 avec masque d'ombrage extérieur et halo cyan.
+  - Repères géographiques fondamentaux tracés analytiquement :
+    - Équateur (ligne pointillée cyan).
+    - Tropique du Cancer (+23.44°) et Tropique du Capricorne (-23.44°) en ambre.
+    - Cercle Polaire Arctique (+66.56°) et Antarctique (-66.56°) en bleu polaire.
+    - Méridien de Greenwich / méridien central.
+  - Contrôles HUD connectés directement aux commandes caméra de MapLibre : bouton `[Recentrer]`, `[+ Zoom]`, `[- Zoom]`, et `[🌍 Zoom Globe 3D]`.
+  - Bouton glassmorphic flottant de retour rapide `[🧭 Planisphère Eckert IV]` actif en mode Globe 3D.
+
+### Phase 5 : Tests, Validation & Documentation de Référence
+- **Documentation de Référence [`docs/braudel.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/docs/braudel.md) & [`braudel/braudel.md`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/braudel.md)** :
+  - Spécification détaillée des 3 projections.
+  - Justification formelle de la stratégie hybride (Voie 1 dynamique en runtime, Voie 2 statique au build pour bundles légers).
+  - Traitement des reliefs raster-dem vs vectoriel.
+  - Intégrité stricte des coordonnées WGS84 dans le store.
+- **Suite de Tests Unitaires Dédiée [`eckert-proj.test.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/tests/eckert-proj.test.ts)** : **20/20 tests validés**.
+- **Suite Complète Vitest** : **33 fichiers de tests, 256/256 tests passants (100%)**.
+- **Validation TypeScript** : `tsc --noEmit` code 0 (zéro erreur).
+
+---
+
+## 3. Résultats de Validation Automatisée
+
+```bash
+$ npx vitest run
+ ✓ braudel/src/tests/basemap-features.test.ts (13 tests)
+ ✓ braudel/src/tests/schema.test.ts (2 tests)
+ ✓ braudel/src/tests/export-import.test.ts (10 tests)
+ ✓ braudel/src/tests/multiworld.test.ts (2 tests)
+ ✓ braudel/src/tests/integration.test.ts (1 test)
+ ✓ braudel/src/tests/climate-integration.test.ts (3 tests)
+ ✓ braudel/src/tests/store-layers-entities.test.ts (6 tests)
+ ✓ braudel/src/store/actions.test.ts (5 tests)
+ ✓ braudel/src/tests/store-relations-ai.test.ts (3 tests)
+ ✓ braudel/src/tests/studio-export.test.ts (15 tests)
+ ✓ braudel/src/tests/story-export.test.ts (20 tests)
+ ✓ braudel/src/tests/studio-dual-monitor.test.ts (15 tests)
+ ✓ braudel/src/tests/eckert-proj.test.ts (20 tests)
+ ✓ braudel/src/tests/multimedia-export.test.ts (15 tests)
+ ...
+ Test Files  33 passed (33)
+      Tests  256 passed (256)
+   Duration  9.00s
+```
+
+```bash
+$ npx tsc --noEmit
+# Sortie code 0 (zéro erreur de typage)
+```
+
+---
+
+## 5. Résolution du Rendu Visuel : Déformation Continue GPU & Fix Import Vite
+
+### Diagnostic de l'Affichage « Simple Fenêtre Mercator »
+- **Constat** : `maplibre-proj` applique une déformation géométrique aux seules tuiles vectorielles possédant des URLs directes `tiles: string[]`. Il ignore les sources vectorielles déclarées via un endpoint TileJSON `url: "..."` (ex. CartoCDN Positron), et ne supporte pas les tuiles raster (relief hillshade, imagerie satellite, etc.).
+- De plus, le pipeline WebGL interne de MapLibre demeure en `projection: { type: 'mercator' }`, de sorte que le canevas et le fond océanique restent un rectangle plat. L'enveloppe SVG `EckertIVOverlay` apparaissait donc comme un simple cadre posé sur une carte Mercator non déformée.
+- **Solution — Rétablissement de `EckertIVWarpCanvas.tsx`** :
+  - `EckertIVWarpCanvas` est réactivé en tant que couche WebGL active (`zIndex: 1`) au-dessus du conteneur MapLibre (`zIndex: 0`).
+  - Le fragment shader GLSL exécute en temps réel à 60 FPS la véritable inversion analytique d'Eckert IV sur la texture globale de la carte :
+    - Déformation elliptique continue des méridiens.
+    - Pôles droits de longueur égale à la moitié de l'Équateur.
+    - Conservation stricte des proportions surfaciques équivalentes (Groenland vs Afrique).
+    - Déformation solidaire de l'ensemble des couches (relief, hillshade, traits de côte, entités temporelles).
+  - Navigation fluide : Pan & Zoom interactifs, double-clic et transition automatique vers le Globe 3D au-delà de 3× de zoom.
+
+### Résolution du SyntaxError Vite (`maplibre-shim.ts`)
+- **Problème** : L'import relatif direct `import maplibregl from '.../dist/maplibre-gl.js'` contournait le pré-bundling Vite (`optimizeDeps`), provoquant dans le navigateur un `SyntaxError: The requested module ... doesn't provide an export named: 'default'`.
+- **Solution** : Déclaration de l'alias virtuel `maplibre-gl-core -> maplibre-gl` dans `vite.config.ts`, inclusion dans `optimizeDeps.include`, et import via `import maplibregl from 'maplibre-gl-core'` dans `maplibre-shim.ts`. Vite pré-compile ainsi proprement le bundle CJS/UMD en module ESM compatible.
+
+---
+
+## 6. Chorégraphie Cinématique de la Transition Fluide (Eckert IV ↔ Globe 3D)
+
+### Diagnostic de la Transition Initiale (« Pop » et Flash Mercator)
+- **Problème** : Lors du passage entre Eckert IV et le Globe 3D, le démontage immédiat du canevas WebGL d'Eckert ou la bascule prématurée de MapLibre en mode `mercator` exposait pendant plusieurs centaines de millisecondes le fond de carte plat rectangulaire de Mercator sous le fondu, rompant l'immersion.
+- De plus, si l'échantillonnage de texture du shader Eckert s'exécutait pendant que MapLibre basculait en projection `globe`, la sphère 3D était ré-enveloppée dans la formule d'Eckert IV, produisant un artefact de distorsion.
+
+### Solution : Machine d'États Asynchrone & Transitions Coordonnées (« Zéro Pop »)
+1. **Sens Eckert IV → Globe 3D** :
+   - Gel immédiat de l'upload de texture (`isTransitioning = true`) dans `EckertIVWarpCanvas` pour préserver le rendu 2D net sans interférence 3D.
+   - MapLibre bascule en projection `globe`, s'initialise à `zoom: 1.15` sur le continent ciblé, et amorce un vol cinématique `map.flyTo({ zoom: 3.2, duration: 1800ms })`.
+   - Le conteneur Eckert applique une expansion optique (`transformOrigin: screenPos`, `scale: 1.0 -> 1.12`) et un fondu sortant (`opacity: 1 -> 0`) sur 520ms.
+   - Le Globe 3D apparaît en pleine rotation et descente vers le sol sous le planisphère qui s'estompe.
+2. **Sens Globe 3D → Eckert IV** :
+   - Le Globe 3D entame un dézoom fluide vers la vue globale dans l'espace cosmique : `map.flyTo({ center: [0, 0], zoom: 1.12, duration: 480ms })`.
+   - Dès $t = 200\text{ms}$, MapLibre étant **toujours en projection Globe 3D**, le canevas Eckert IV (pré-chargé en mémoire VRAM) s'épanouit : `scale: 0.92 -> 1.0`, `opacity: 0 -> 1` sur 550ms (`cubic-bezier(0.16, 1, 0.3, 1)`).
+   - Ce n'est qu'à $t = 780\text{ms}$, une fois Eckert à 100% d'opacité, que MapLibre bascule silencieusement en `mercator` à l'abri des regards.
+   - **Résultat : ZÉRO flash Mercator, transition continue et soignée à 60 FPS**.
+
+---
+
+## 7. Plein Écran Hors-Champ, Dézoom Automatique & Résilience Événements / WebGL
+
+### 1. Plein Écran Hors-Champ (`getOffscreenScale()`)
+- **Problème** : Lors de la transition, le contour ovale et le cadre d'atlas restaient visibles au centre, créant un effet de « boîte » qui rétrécissait ou s'agrandissait au milieu de l'écran.
+- **Solution** : Calcul dynamique d'un ratio plein écran $\approx 1.85\times - 2.0\times$ projetant les 4 bords du cadre et les calottes polaires au-delà des limites physiques du viewport.
+- **Cinématique** :
+  - *Eckert $\to$ Globe* : Le planisphère s'agrandit jusqu'à dépasser l'écran tout en s'estompant, donnant l'impression de plonger directement dans la surface terrestre sans voir de boîte.
+  - *Globe $\to$ Eckert* : Le planisphère naît à l'échelle plein écran hors-champ (`scale: offscreenScale`), puis glisse et s'ajuste doucement pour se poser dans son cadre d'atlas $2:1$ centré.
+
+### 2. Dézoom Molette Automatique en Mode Globe
+- Écouteur molette ciblant la caméra orbitale : lorsque `zoom <= 1.35` et que l'utilisateur continue de faire tourner la molette en arrière (`deltaY > 0`), la transition vers Eckert IV se déclenche automatiquement sans devoir cliquer sur un bouton.
+
+### 3. Élimination du Crash `dragStartRef.current is null` & Résilience Contexte WebGL
+- **Origine du bug** : Dans `handleMouseMove`, `updateTransform(prev => ({ panX: dragStartRef.current!.panX + dx }))` exécutait sa fonction de rappel de façon différée dans le microtask queue / scheduler React (`workLoop scheduler.development.js:266`). Si l'utilisateur relâchait la souris (`handleMouseUp`), `dragStartRef.current` passait à `null` avant l'évaluation de la mise à jour, provoquant un `TypeError` fatal qui démontait `<MapView>` et provoquait la perte du contexte WebGL.
+- **Correction** :
+  1. Extraction synchrone de `targetPanX` et `targetPanY` avant l'appel à `updateTransform`. L'updater ne lit plus aucune ref mutable.
+  2. Wrapper défensif `handleTransformChange` dans `MapView.tsx` filtrant les `NaN` et encapsulant les mises à jour dans un bloc `try/catch`.
+
+### 4. Suppression de l'Avertissement Molette Passif
+- Remplacement de l'attribut React synthétique `onWheel` (passif par défaut dans React 18) par un écouteur natif `addEventListener('wheel', ..., { passive: false })` sur le canevas WebGL. L'appel `e.preventDefault()` est exécuté sans aucun avertissement dans la console.
+
+### 5. Validation Automatisée
+- **Tests Vitest** : 256/256 tests réussis (33 suites de test).
+- **TypeScript** : `npx tsc --noEmit` code de retour 0 (0 erreur).

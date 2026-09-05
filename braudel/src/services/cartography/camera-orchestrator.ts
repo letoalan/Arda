@@ -1,4 +1,6 @@
 import { StoryCameraTransition, StoryMapState, TransitionProfile } from '../../core/schema/story';
+import { getEffectiveStyleBearing } from '../../core/styles.config';
+import { mapService } from './map-service';
 
 /**
  * Calcule la distance Haversine en kilomètres entre deux coordonnées [lng, lat].
@@ -29,14 +31,16 @@ export function selectOptimalTransitionType(
 
   const distKm = computeDistanceKm(fromState.center, toState.center);
   const deltaZoom = Math.abs(fromState.zoom - toState.zoom);
+  const deltaBearing = Math.abs((fromState.bearing ?? 0) - (toState.bearing ?? 0));
+  const deltaPitch = Math.abs((fromState.pitch ?? 0) - (toState.pitch ?? 0));
 
   // Même cadrage exact (seule la date ou le filtre change)
-  if (distKm < 1 && deltaZoom < 0.1) {
+  if (distKm < 1 && deltaZoom < 0.1 && deltaBearing < 1 && deltaPitch < 1) {
     return 'static';
   }
 
-  // Écart très faible, même région -> transition linéaire sans dézoom
-  if (distKm < 100 && deltaZoom < 2.0) {
+  // Écart très faible, même région ou simple rotation/inclinaison -> transition linéaire sans dézoom
+  if ((distKm < 100 && deltaZoom < 2.0) || (distKm < 1 && (deltaBearing >= 1 || deltaPitch >= 1))) {
     return 'easeTo';
   }
 
@@ -119,14 +123,26 @@ export async function playSceneTransition(
   const pauseDuration = transition.pauseAfterMs ?? profileConfig.pauseAfterMs;
   const essential = isExport || transition.reduceMotionPolicy === 'essential-for-export';
 
-  // 3. Exécution de la transition
+  // 3. Exécution de la transition avec résolution canonique du style de fond
+  const activeStyle = toState.basemapStyle 
+    || (typeof mapService !== 'undefined' && typeof mapService.getCurrentStyleId === 'function' ? mapService.getCurrentStyleId() : undefined)
+    || fromState?.basemapStyle;
   const currentBearing = typeof map.getBearing === 'function' ? map.getBearing() : 0;
   const currentPitch = typeof map.getPitch === 'function' ? map.getPitch() : 0;
-  const targetBearing = toState.bearing !== undefined ? toState.bearing : currentBearing;
+  const rawTargetBearing = toState.bearing !== undefined ? toState.bearing : currentBearing;
+  const targetBearing = getEffectiveStyleBearing(activeStyle, rawTargetBearing);
   const targetPitch = toState.pitch !== undefined ? toState.pitch : currentPitch;
 
   if (moveType === 'static') {
-    // Aucune animation caméra
+    // S'assurer que le cadrage exact (centre, zoom, pitch, bearing) est rigoureusement appliqué
+    if (typeof map.jumpTo === 'function') {
+      map.jumpTo({
+        center: toState.center,
+        zoom: toState.zoom,
+        pitch: targetPitch,
+        bearing: targetBearing
+      });
+    }
   } else if (moveType === 'jumpTo') {
     map.jumpTo({
       center: toState.center,
@@ -169,6 +185,8 @@ export async function playSceneTransition(
   // 4. Attente de la stabilisation totale des calques et tuiles
   await waitForMapIdle(map, 2000);
 
-  // 5. Pause narrative post-vol
-  await new Promise((r) => setTimeout(r, pauseDuration));
+  // 5. Pause narrative post-vol (en prévisualisation interactive uniquement ; en export vidéo, la timeline gère la durée exacte des plans)
+  if (!isExport) {
+    await new Promise((r) => setTimeout(r, pauseDuration));
+  }
 }

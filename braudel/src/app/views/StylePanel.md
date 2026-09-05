@@ -1,7 +1,7 @@
 # StylePanel.tsx
 
 ## Rôle
-Panneau de configuration des styles visuels et des fonds de carte MapLibre. Permet d'ajuster l'exagération du relief (`exaggeration`), les couleurs d'ombre/lumière (`shadowColor`, `highlightColor`), la projection (Mercator / Globe 3D), et le thème de fond cartographique (historique ou Tolkien).
+Panneau de configuration des styles visuels et des fonds de carte MapLibre. Permet d'ajuster l'exagération du relief (`exaggeration`), les couleurs d'ombre/lumière (`shadowColor`, `highlightColor`), la projection cartographique (`mercator` 2D, `globe` 3D, ou `eckert4` 2D équivalent), et le thème de fond cartographique (historique ou Tolkien).
 
 ## Emplacement
 `src/app/views/StylePanel.tsx`

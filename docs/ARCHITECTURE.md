@@ -72,6 +72,19 @@ graph LR
 
 ---
 
+### 3. Architecture des Trois Modes de Projections Cartographiques
+
+Arda / Braudel supporte trois modes de projection cartographiques indépendants et complémentaires :
+1. **Web Mercator (2D Conforme, `mercator`)** : Rendu cartographique standard préservant les angles, idéal pour la navigation locale et le carroyage régulier.
+2. **Globe 3D (Sphérique Orthographique, `globe`)** : Perspective sphérique interactive MapLibre native avec relief DEM Terrarium 3D et rotation libre.
+3. **Eckert IV (2D Équivalent & Pseudocylindrique, `eckert4` — `ESRI:54012`)** : Planisphère pédagogique officiel préservant fidèlement les surfaces relatives continentales sans anamorphose polaire.
+   - Moteur runtime : PROJ 9 WebAssembly (`backproj` / `maplibre-proj` via Dirty Reprojector) assurant un débit vectoriel > 50 000 sommets/s.
+   - Moteur de build & cache : Pré-déformation statique CLI (`scripts/preproject-eckert4.ts`) et découpage en tuiles vectorielles multi-échelles (`geojson-vt`).
+   - Fonctions géographiques dédiées : Calculs de distances orthodromiques Haversine, dé-projection des entités sélectionnées et positionnement des marqueurs (`eckertGeoUtils.ts`).
+
+
+---
+
 ## Fil d'Ariane & Navigation
 
 [Projet Braudel (Racine)](../README.md) -> **ARCHITECTURE.md** -> [src/ (Code Source)](../braudel/src/src.md)

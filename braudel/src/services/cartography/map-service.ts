@@ -12,10 +12,11 @@ import { createMapLibreDrawInstance, enableDrawingModeOnMap } from './mapDrawing
 import { toggleGeoReferenceLines, toggleGraticuleGrid, updateGraticuleStyle } from './modules/grid-reference-layers';
 import { toggleRhumbLines, updateRhumbPalette } from './modules/rhumb-layers';
 import { setupClimateLayers, updateIceCapsLayer, updateSeaLevelLayer } from './modules/climate-layers';
-import { STYLE_CONFIGS } from '../../core/styles.config';
+import { STYLE_CONFIGS, BasemapStyleId } from '../../core/styles.config';
 import { getBasemapFeatureDefaults } from '../../core/styles/styleFeatureDefaults';
 import { logCarto, logCartoWarn } from './modules/carto-logger';
 import { buildDEMGrid, renderDEMTileAsync } from './syntheticDemTileServer';
+import { unprojectRenderedFeatureCoordinates } from './eckertGeoUtils';
 
 function buildOceanMaskGeoJSON(geojson: any) {
   const outerRing: [number, number][] = [
@@ -74,7 +75,7 @@ export class MapService {
   private lastGeoRefVisible: boolean = true;
   private lastPortulanRhumbVisible: boolean = false;
   private lastGraticuleVisible: boolean = false;
-  private lastProjection: 'mercator' | 'globe' = 'mercator';
+  private lastProjection: 'mercator' | 'globe' | 'eckert4' = 'mercator';
   private lastReliefParams: { exaggeration: number; shadowColor: string; highlightColor: string } | null = { exaggeration: 0.5, shadowColor: '#000000', highlightColor: '#FFFFFF' };
   private lastEntitiesArgs: { entities: any[]; relations: any[]; currentTime: number; proposal?: any; layers?: any[]; epochRange?: { validFrom?: number; validTo?: number } } | null = null;
   private lastClimateParams: { iceCapLatitude: number; iceCapVisible: boolean; seaLevelMeters: number; seaLevelVisible: boolean } | null = null;
@@ -180,13 +181,18 @@ export class MapService {
         }
 
         if (this.lastProjection && (this.map as any).setProjection) {
+          const maplibreProj = this.lastProjection === 'globe' ? 'globe' : 'mercator';
           try {
-            (this.map as any).setProjection({ type: this.lastProjection });
+            (this.map as any).setProjection({ type: maplibreProj });
           } catch (e) {
             try {
-              (this.map as any).setProjection({ name: this.lastProjection });
+              (this.map as any).setProjection({ name: maplibreProj });
             } catch (e2) {}
           }
+        }
+
+        if (this.lastProjection === 'eckert4') {
+          this.applyEckertProjection();
         }
 
         if (this.lastReliefParams) {
@@ -266,7 +272,13 @@ export class MapService {
       });
     }
 
-    updateMapSourceData(this.map, 'braudel-entities', geojsonData);
+    const updateSource = (data: any) => {
+      if (this.map) {
+        updateMapSourceData(this.map, 'braudel-entities', data);
+      }
+    };
+
+    updateSource(geojsonData);
   }
 
   enableDrawingMode(entityId: string, type: 'Point' | 'LineString' | 'Polygon', existingGeometry?: any, modeOverride?: 'simple_select' | 'direct_select') {
@@ -275,11 +287,15 @@ export class MapService {
     enableDrawingModeOnMap(this.draw, entityId, type, existingGeometry, modeOverride);
   }
 
-  confirmDrawing() {
+  async confirmDrawing() {
     if (!this.draw || !this.drawingEntityId) return;
     const data = this.draw.getAll();
     if (data.features.length > 0) {
-      const geometry = data.features[0].geometry;
+      let geometry = data.features[0].geometry;
+      if (this.lastProjection === 'eckert4') {
+        const feature = await unprojectRenderedFeatureCoordinates(data.features[0] as any);
+        geometry = feature.geometry;
+      }
       this.emitter.emitDrawComplete(this.drawingEntityId, geometry);
     }
     this.cancelDrawingMode();
@@ -366,6 +382,10 @@ export class MapService {
     }
   }
 
+  getCurrentStyleId(): BasemapStyleId | undefined {
+    return this.currentStyleId;
+  }
+
   setLabelsVisible(visible: boolean) {
     this.lastLabelsVisible = visible;
     if (this.map) applyLabelsVisibility(this.map, visible);
@@ -403,20 +423,62 @@ export class MapService {
     if (this.map) toggleGraticuleGrid(this.map, visible, this.currentStyleId);
   }
 
-  setProjection(projectionType: 'mercator' | 'globe') {
+  async setProjection(projectionType: 'mercator' | 'globe' | 'eckert4') {
+    const prevProjection = this.lastProjection;
     this.lastProjection = projectionType;
     if (this.map) {
+      const maplibreProj = projectionType === 'globe' ? 'globe' : 'mercator';
       try {
         if ((this.map as any).setProjection) {
-          (this.map as any).setProjection({ type: projectionType });
+          (this.map as any).setProjection({ type: maplibreProj });
         }
         this.map.triggerRepaint();
       } catch (e) {
         try {
-          (this.map as any).setProjection({ name: projectionType });
+          (this.map as any).setProjection({ name: maplibreProj });
           this.map.triggerRepaint();
         } catch (e2) {}
       }
+
+      if (projectionType === 'eckert4') {
+        await this.applyEckertProjection();
+      } else if (prevProjection === 'eckert4') {
+        await this.restoreStandardProjection();
+      } else {
+        this.map.triggerRepaint();
+      }
+    }
+  }
+
+  getCurrentProjection(): 'mercator' | 'globe' | 'eckert4' {
+    return this.lastProjection;
+  }
+
+  isEckertIV(): boolean {
+    return this.lastProjection === 'eckert4';
+  }
+
+  private async applyEckertProjection() {
+    if (!this.map) return;
+    try {
+      this.map.jumpTo({
+        center: [0, 0],
+        zoom: 1.0,
+        bearing: 0,
+        pitch: 0
+      });
+      this.map.triggerRepaint();
+    } catch (err) {
+      logCartoWarn('ECKERT_PROJECTION_ERR', 'Erreur lors du cadrage Eckert IV:', err);
+    }
+  }
+
+  private async restoreStandardProjection() {
+    if (!this.map) return;
+    try {
+      this.map.triggerRepaint();
+    } catch (err) {
+      logCartoWarn('RESTORE_PROJECTION_ERR', 'Erreur lors de la restauration de la projection standard:', err);
     }
   }
 
@@ -467,6 +529,11 @@ export class MapService {
       return;
     }
 
+    this.applyContinentsToMap(geojson);
+  }
+
+  private applyContinentsToMap(geojson: any) {
+    if (!this.map) return;
     // Resolve palette from current Tolkien theme
     const styleConfig = STYLE_CONFIGS.find(s => s.id === this.currentStyleId);
     const overrides = styleConfig?.mapPaintOverrides;

@@ -6,7 +6,7 @@ import { loadStoryFromStorage, saveStoryToStorage } from '../../services/export/
 import { StorySceneList } from '../components/story/StorySceneList';
 import { StorySceneEditor } from '../components/story/StorySceneEditor';
 import { generateStandaloneHtml } from '../../services/export/standalone-template';
-import { STYLE_CONFIGS } from '../../core/styles.config';
+import { STYLE_CONFIGS, getEffectiveStyleBearing } from '../../core/styles.config';
 import { parseArdaDocFromHtml, migrateArdaDoc } from '../../services/export/modules/arda-doc-parser';
 import { SlideEditorModal } from './SlideEditorModal';
 import { mapService } from '../../services/cartography/map-service';
@@ -48,7 +48,8 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
     const center = map ? [map.getCenter().lng, map.getCenter().lat] : [2, 45];
     const zoom = map ? map.getZoom() : 3;
     const pitch = map ? map.getPitch() : 0;
-    const bearing = map ? map.getBearing() : 0;
+    const rawBearing = map ? map.getBearing() : 0;
+    const bearing = getEffectiveStyleBearing(basemapStyle, rawBearing);
 
     const newScene: StoryScene = {
       id: `scene-${Date.now()}`,
@@ -59,6 +60,7 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
         zoom,
         pitch,
         bearing,
+        basemapStyle,
         timelineYear: currentTime,
         visibleLayerIds: []
       },
@@ -73,6 +75,27 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
     const updatedScenes = [...story.scenes, newScene];
     setStory({ ...story, scenes: updatedScenes });
     setActiveSceneId(newScene.id);
+  };
+
+  const handleSelectScene = (sceneId: string) => {
+    setActiveSceneId(sceneId);
+    const selected = story.scenes.find(s => s.id === sceneId);
+    if (selected && selected.mapState) {
+      const map = mapService.getMap();
+      if (map && typeof map.flyTo === 'function') {
+        const effBearing = getEffectiveStyleBearing(selected.mapState.basemapStyle || basemapStyle, selected.mapState.bearing);
+        map.flyTo({
+          center: selected.mapState.center,
+          zoom: selected.mapState.zoom,
+          bearing: effBearing,
+          pitch: selected.mapState.pitch || 0,
+          duration: 800
+        });
+      }
+      if (selected.mapState.timelineYear !== undefined) {
+        useStore.getState().setCurrentTime(selected.mapState.timelineYear);
+      }
+    }
   };
 
   const handleDeleteScene = (sceneId: string) => {
@@ -167,7 +190,8 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
               center: wp.cameraState?.center || [12.5, 42.0],
               zoom: wp.cameraState?.zoom ?? 4,
               pitch: wp.cameraState?.pitch || 0,
-              bearing: wp.cameraState?.bearing || 0,
+              bearing: getEffectiveStyleBearing(migratedDoc.map?.styleId || basemapStyle, wp.cameraState?.bearing),
+              basemapStyle: migratedDoc.map?.styleId || basemapStyle,
               timelineYear: wp.year,
               visibleLayerIds: []
             },
@@ -259,7 +283,7 @@ export const StoryEditorPanel: React.FC<StoryEditorPanelProps> = ({ onStartPrevi
         <StorySceneList 
           scenes={story.scenes}
           activeSceneId={activeSceneId}
-          onSelectScene={setActiveSceneId}
+          onSelectScene={handleSelectScene}
           onAddScene={handleAddScene}
           onDeleteScene={handleDeleteScene}
           onMoveScene={handleMoveScene}

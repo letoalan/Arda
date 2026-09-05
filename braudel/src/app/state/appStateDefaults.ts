@@ -53,5 +53,7 @@ export const initialAppState = {
     intensity: 2,
     speed: 2,
     dominantCause: 'astronomical' as const
-  }
+  },
+  isStudioMode: false,
+  studioLayoutMode: 'dual' as const
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import { StoryScene, StoryLayout, TransitionProfile, DurationMode } from '../../../core/schema/story';
 import { Camera, Layout, Zap, Clock, ShieldCheck } from 'lucide-react';
 import { mapService } from '../../../services/cartography/map-service';
+import { getEffectiveStyleBearing } from '../../../core/styles.config';
 
 interface StorySceneEditorProps {
   scene: StoryScene;
@@ -22,7 +23,9 @@ export const StorySceneEditor: React.FC<StorySceneEditorProps> = ({
     const center = map.getCenter();
     const zoom = map.getZoom();
     const pitch = map.getPitch();
-    const bearing = map.getBearing();
+    const rawBearing = map.getBearing();
+    const activeStyle = scene.mapState?.basemapStyle || (mapService.getCurrentStyleId ? mapService.getCurrentStyleId() : undefined);
+    const bearing = getEffectiveStyleBearing(activeStyle, rawBearing);
 
     onUpdateScene({
       ...scene,
@@ -32,6 +35,7 @@ export const StorySceneEditor: React.FC<StorySceneEditorProps> = ({
         zoom,
         pitch,
         bearing,
+        basemapStyle: activeStyle,
         timelineYear: currentTime
       }
     });

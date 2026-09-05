@@ -1,4 +1,4 @@
-import { StyleConfig } from '../../../core/styles.config';
+import { StyleConfig, getEffectiveStyleBearing } from '../../../core/styles.config';
 import { StoryProject } from '../../../core/schema/story';
 
 export const CURRENT_ARDA_SCHEMA_VERSION = '1.1.0';
@@ -96,7 +96,7 @@ export interface ArdaMapConfig {
   zoom: number;
   bearing?: number;
   pitch?: number;
-  projection?: 'mercator' | 'globe';
+  projection?: 'mercator' | 'globe' | 'eckert4';
   terrain?: ArdaTerrainConfig;
   geoReferenceLinesVisible?: boolean;
   portulanRhumbVisible?: boolean;
@@ -142,7 +142,7 @@ export function convertStoryProjectToArdaDoc(
     basemapRoadsVisible?: boolean;
     basemapRiversVisible?: boolean;
     pitch?: number;
-    projection?: 'mercator' | 'globe';
+    projection?: 'mercator' | 'globe' | 'eckert4';
   }
 ): ArdaDoc {
   const waypoints: ArdaWaypoint[] = [];
@@ -208,7 +208,7 @@ export function convertStoryProjectToArdaDoc(
         center: scene.mapState?.center || [12.5, 42.0],
         zoom: scene.mapState?.zoom ?? 4,
         pitch: scene.mapState?.pitch || 0,
-        bearing: scene.mapState?.bearing || 0,
+        bearing: getEffectiveStyleBearing(scene.mapState?.basemapStyle || styleConfig.id, scene.mapState?.bearing),
       };
 
       const slideRefs: string[] = [];
@@ -279,7 +279,7 @@ export function convertStoryProjectToArdaDoc(
           id: `wp-auto-${idx + 1}`,
           year: yr,
           label: `${worldName} — ${formattedYear}`,
-          cameraState: { center: [12.5, 42.0], zoom: 4, pitch: defaultPitch, bearing: styleConfig.bearing || 0 },
+          cameraState: { center: [12.5, 42.0], zoom: 4, pitch: defaultPitch, bearing: getEffectiveStyleBearing(styleConfig.id, styleConfig.bearing) },
           narrationText: `Situation géopolitique en ${formattedYear} (${activeCount} entités actives identifiées).`,
           slideRefs: [],
         });
@@ -290,7 +290,7 @@ export function convertStoryProjectToArdaDoc(
         id: 'wp-default',
         year: minYear,
         label: worldName,
-        cameraState: { center: [12.5, 42.0], zoom: 4, pitch: defaultPitch, bearing: 0 },
+        cameraState: { center: [12.5, 42.0], zoom: 4, pitch: defaultPitch, bearing: getEffectiveStyleBearing(styleConfig.id, 0) },
         narrationText: `Exploration cartographique interactive de ${worldName}.`,
         slideRefs: [],
       });
@@ -306,7 +306,7 @@ export function convertStoryProjectToArdaDoc(
       styleId: styleConfig.id,
       center: [12.5, 42.0],
       zoom: 4,
-      bearing: styleConfig.bearing || 0,
+      bearing: getEffectiveStyleBearing(styleConfig.id, styleConfig.bearing),
       pitch: mapOptions?.pitch ?? ((styleConfig as any).demEnabled ? 45 : 0),
       projection: mapOptions?.projection || 'mercator',
       terrain: {

@@ -21,6 +21,7 @@ Point d'entrée du store Zustand (`useStore`). Combine et ré-exporte l'ensemble
 - `initFromDB(worldId)` : Charge le monde et ses collections depuis la base locale.
 - `createRealWorld(...)` / `createFictionalWorld(...)` : Initialise un nouveau monde historique ou imaginaire.
 - `updateEntityGeometry(...)` : Met à jour la géométrie d'une entité suite à une édition carte.
+- `setStudioMode(active)` / `setStudioLayoutMode(mode)` : Pilotage de l'état du Mode Studio (CapCut) et de son agencement d'affichage (`'dual'` 2 écrans vs `'single'` 1 écran).
 
 ## Points d'Attention / Dette Technique
 - La taille du fichier a été réduite sous 200 lignes grâce à la modularisation par Slices.

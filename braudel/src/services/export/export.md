@@ -15,6 +15,11 @@ Ce secteur regroupe les générateurs d'exportations aux différents formats pri
 | **`pdf-timeline-utils.ts`** | Utilitaires d'extraction polymorphe des époques et du point médian | [pdf-timeline-utils.md](./pdf-timeline-utils.md) |
 | **`storyboard-export.ts`** | Génération de packs Zip storyboard (visuels HD, story.json, script.md) | [storyboard-export.md](./storyboard-export.md) |
 | **`video-export.ts`** | Exportation vidéo cinématique WebM (VP9 30fps) avec transitions caméras | [video.md](./video.md) |
+| **`studio-types.ts`** | Modèle de données `EditTimeline`, clips vidéo/audio et durées étendues | [studio-types.md](./studio-types.md) |
+| **`audio-import.ts`** | Import, décodage Web Audio, calcul de forme d'onde et gestion des pistes audio | [audio-import.md](./audio-import.md) |
+| **`media-import.ts`** | Importation d'images et vidéos externes, extraction de durée et conversion en clips | [media-import.md](./media-import.md) |
+| **`TimelineScheduler.ts`** | Planificateur temporel, résolution de collisions et synchronisation multi-pistes | [TimelineScheduler.md](./TimelineScheduler.md) |
+| **`timeline-editor-actions.ts`** | Opérations de montage Studio : Split au playhead, Crops temporels, Copier, Couper, Coller | [timeline-editor-actions.md](./timeline-editor-actions.md) |
 
 ## Fil d'Ariane
 [services/](../services.md) -> **export/** -> [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md)

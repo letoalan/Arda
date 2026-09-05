@@ -20,7 +20,7 @@ export interface AppState {
   geoReferenceLinesVisible: boolean;
   portulanRhumbVisible: boolean;
   graticuleVisible: boolean;
-  mapProjection: 'mercator' | 'globe';
+  mapProjection: 'mercator' | 'globe' | 'eckert4';
   activeEmpire: 'all' | 'british' | 'french' | 'portuguese' | 'neutral';
   currentTime: number;
   startYear: number;
@@ -47,6 +47,8 @@ export interface AppState {
   climateRcpVariability: boolean;
   climateSelectedRcp: 'RCP2.6' | 'RCP4.5' | 'RCP6.0' | 'RCP8.5' | null;
   tolkienClimateParams: any;
+  isStudioMode: boolean;
+  studioLayoutMode: 'dual' | 'single';
 
   saveToDB: () => Promise<void>;
   initFromDB: (worldId?: string) => Promise<void>;
@@ -79,7 +81,7 @@ export interface AppState {
   setGeoReferenceLinesVisible: (visible: boolean) => void;
   setPortulanRhumbVisible: (visible: boolean) => void;
   setGraticuleVisible: (visible: boolean) => void;
-  setMapProjection: (projection: 'mercator' | 'globe') => void;
+  setMapProjection: (projection: 'mercator' | 'globe' | 'eckert4') => void;
   setActiveEmpire: (empire: 'all' | 'british' | 'french' | 'portuguese' | 'neutral') => void;
   setCurrentTime: (time: number) => void;
   setViewMode: (mode: ViewMode) => void;
@@ -111,4 +113,6 @@ export interface AppState {
   importBatchEntities: (entities: any[], batchTitle?: string) => Promise<void>;
   rollbackImportBatch: (importBatchId: string) => Promise<number>;
   clearErrors: () => void;
+  setStudioMode: (active: boolean) => void;
+  setStudioLayoutMode: (mode: 'dual' | 'single') => void;
 }

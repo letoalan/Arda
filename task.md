@@ -1,55 +1,300 @@
-# Tâches d'implémentation : Résolution et optimisation de l'Export PDF
+# Tâches d'implémentation — Chantiers modifications.md
 
-- [x] 1. Activation de `preserveDrawingBuffer` dans MapLibre ([map-service.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/map-service.ts)) <!-- id: 0 -->
-- [x] 2. Refonte du module d'exportation PDF & multimédia ([export-multimedia.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export-multimedia.ts)) <!-- id: 1 -->
-  - [x] 2.1 Capture asynchrone sécurisée du WebGL Canvas
-  - [x] 2.2 Algorithme de cadrage A4 paysage avec conservation stricte de l'aspect ratio
-  - [x] 2.3 Rendu vectoriel du cartouche, de la rose des vents et de l'échelle graphique
-  - [x] 2.4 Construction de la légende enrichie (entités catégorisées, styles, figurés et relations)
-- [x] 3. Intégration dans le panneau d'export ([DataPanel.tsx](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/DataPanel.tsx)) <!-- id: 2 -->
-- [x] 4. Enrichissement de la suite de tests unitaires ([multimedia-export.test.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/tests/multimedia-export.test.ts)) <!-- id: 3 -->
-- [x] 5. Synchronisation de la documentation technique (Wiki-as-Code) <!-- id: 4 -->
-  - [x] [export-multimedia.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export-multimedia.md)
-  - [x] [export.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export.md)
-  - [x] [map-service.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/map-service.md)
-  - [x] [DataPanel.md](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/DataPanel.md)
-- [x] 6. Exécution des tests et validation finale <!-- id: 5 -->
-- [x] 7. Résolution de l'absence des calques vectoriels sur l'Atlas PDF (solution2.md) <!-- id: 6 -->
-  - [x] 7.1 Résolution et injection dynamique GeoJSON catalogue à la volée ([export-multimedia.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/export-multimedia.ts))
-  - [x] 7.2 Verrouillage GPU et synchronisation WebGL (`waitForMapReady` sur `isSourceLoaded` et `areTilesLoaded`)
-  - [x] 7.3 Support polymorphe universel des plages temporelles `{ validFrom, validTo }` et `[start, end]` ([pdf-timeline-utils.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/pdf-timeline-utils.ts), [mapGeojsonRenderer.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/cartography/mapGeojsonRenderer.ts))
-  - [x] 7.4 Photographie exacte au point médian ($T_{\text{snapshot}}$) pour chaque période sélectionnée ($X$ périodes = $X$ pages)
-  - [x] 7.5 Tests unitaires et validation complète (140 tests validés)
-- [x] 8. Résolution de la disparition des tuiles vectorielles de fond & état caméra (solution3-1.md) <!-- id: 7 -->
-  - [x] 8.1 Verrouillage étendu à toutes les sources du style (`waitForAllSourcesReady`)
-  - [x] 8.2 Contrôle de l'état d'immobilité de la caméra (`!isMoving()`, `!isZooming()`, `!isRotating()`)
-  - [x] 8.3 Gestion du pré-chargement et snapshots synchronisés (`ensureEpochEntitiesLoaded`, `captureSnapshotAt`)
-  - [x] 8.4 Tests unitaires de non-régression et timeout caméra (142 tests validés)
-- [x] 9. Résolution du faux positif de synchronisation & unicité de canevas inter-pages (solution4.md) <!-- id: 8 -->
-  - [x] 9.1 Synchronisation événementielle ciblée par `setData` (`updateEntitiesAndWaitForRender` avec écoute de `sourcedata` / `isSourceLoaded`)
-  - [x] 9.2 Séparation de la vérification du fond de carte (`waitForBackgroundTilesReady`) du cycle de vie des entités
-  - [x] 9.3 Tests unitaires de non-régression (ordre `setData` -> `render` -> `capture`, canevas distincts par époque, 144 tests validés)
-- [x] 10. Modularisation du pipeline d'export (< 200 lignes par fichier) & Wiki-as-Code <!-- id: 9 -->
-  - [x] 10.1 Découpage sous `services/export/modules/` (`pdf-types.ts`, `pdf-map-capture.ts`, `pdf-carto-elements.ts`, `pdf-page-renderer.ts`, `pdf-atlas-generator.ts`, `media-export-utils.ts`)
-  - [x] 10.2 Façade modulaire `export-multimedia.ts` (< 50 lignes) avec compatibilité 100%
-  - [x] 10.3 Documentation technique Wiki-as-Code pour chaque module créé et mise à jour des index parent
-- [x] 11. Expansion du mode d'export HTML Carte-Récit interactif (bento.md) <!-- id: 10 -->
-  - [x] 11.1 Modèle de données `ArdaDoc` & conversion universelle ([bento-types.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts))
-  - [x] 11.2 Moteur client de timeline pilotée, waypoints & filtrage temporel ([standalone-timeline-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts))
-  - [x] 11.3 Bascule bidirectionnelle Carte <-> Diapositive d'appui avec retour garanti `same-waypoint` ([standalone-slide-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-logic.ts))
-  - [x] 11.4 Mode Présentation (F5), raccourcis clavier et sauvegarde en place (Ctrl+S)
-  - [x] 11.5 Squelette HTML5 et styles Bento Glassmorphism ([standalone-template.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts), [standaloneStyles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standaloneStyles.ts))
-  - [x] 11.6 Suite de tests unitaires de non-régression (146 tests validés) & Wiki-as-Code synchronisé
-- [x] 12. Affinage Itération 2 de l'Export HTML Carte-Récit (bento2.md) <!-- id: 11 -->
-  - [x] 12.1 Extraction automatique de waypoints depuis les entités temporelles ([bento-types.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/bento-types.ts))
-  - [x] 12.2 Conservation stricte et fidèle du style vectoriel actif ([standalone-template.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts))
-  - [x] 12.3 Élimination du clipping des points aux frontières `buffer: 128`, `tolerance: 0.375` ([standalone-map-init.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-map-init.ts))
-  - [x] 12.4 Tiroir de légende latérale dynamique `renderLegendContent` et raccourci `L` ([standalone-timeline-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-timeline-logic.ts), [standalone-slide-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-styles.ts))
-  - [x] 12.5 Tests de non-régression (147 tests validés) & documentation Wiki-as-Code mise à jour
-- [x] 13. Évolutions Bento Slide Editor & Player (bento-editor-player.md) <!-- id: 12 -->
-  - [x] 13.1 Rendu plein écran 16:9 parfait (`aspect-ratio: 16/9`, `object-fit: contain`, `overflow: hidden`, pillarboxing/letterboxing) ([standalone-slide-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-styles.ts))
-  - [x] 13.2 Mode Écran Partagé Carte/Slide (Bouton ⬓ & raccourci `S`, Split vertical 50/50, Minicarte PIP incrustée 160×160px) ([standalone-template.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/standalone-template.ts), [standalone-slide-logic.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-logic.ts))
-  - [x] 13.3 Responsivité multi-displays & zone de sécurité dynamique anti-collision volet Bento / timeline basse ([standalone-bento-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-bento-styles.ts), [standalone-slide-styles.ts](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/standalone-slide-styles.ts))
-  - [x] 13.4 Enrichissements PowerPoint (formes flèches/étoiles/bannières, guides d'alignement magnétiques visuels)
-  - [x] 13.5 Tests unitaires de non-régression et mise à jour de la documentation technique (Wiki-as-Code)
-
+- [x] **Phase 1 : Socle Rendu Cartographique & Vecteurs**
+  - [x] Chantier 3 : Couche `braudel-polygon-outline` et filtres temporels
+  - [x] Chantier 1 : Capture dynamique du style actif à l'export
+  - [x] Chantier 2 : Relief (DEM) distant, hillshade et garde-fou réseau
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 2 : Overlay Diapositive Plein Écran (Chantier 4)**
+  - [x] Remplacement bouton retour par croix `#btn-slide-close`
+  - [x] Style CSS overlay (semi-transparent, `backdrop-filter: blur()`)
+  - [x] Maintien de la carte non masquée et exécution des animations
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 3 : Éditeur de Slide V1 & Rendu (Chantier 5)**
+  - [x] Extension du schéma `ArdaSlideElement` (coordonnées, dimensions, style)
+  - [x] Composant éditeur de slide 16:9 avec outils d'insertion & snapping ([`SlideEditorModal.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/SlideEditorModal.tsx))
+  - [x] Rendu des éléments dans le viewer autonome
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 4 : Sauvegarde, Réédition & Migrations (Chantier 6)**
+  - [x] `schemaVersion` et fonctions de migration / validation ([`arda-doc-parser.ts`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/services/export/modules/arda-doc-parser.ts))
+  - [x] Bouton et parsing d'import `.html` dans l'éditeur ([`StoryEditorPanel.tsx`](file:///c:/Users/alano/OneDrive/Documents/GitHub/Arda/braudel/src/app/views/StoryEditorPanel.tsx))
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Phase 5 : Tests Automatisés & Validation**
+  - [x] Exécution et complétion de la suite de tests unitaires/intégration (28 fichiers de tests, 151 tests passants)
+  - [x] Synchronisation finale des artéfacts et documentation
+- [x] **Hotfix : Correction contamination inter-époques PDF**
+  - [x] Détection et récupération WebGL context loss (`pdf-map-capture.ts`)
+  - [x] Purge explicite source GeoJSON entre chaque itération (`pdf-atlas-generator.ts`)
+  - [x] Suppression double setData / race condition (`updateMapEntities` retiré de la boucle d'export)
+  - [x] Filtrage strict des entités/relations passées à la légende (`isEntityVisibleAt` / `isRelationVisibleAt`)
+  - [x] Documentation technique Wiki-as-Code (fichiers `.md`)
+- [x] **Évolution : Échelle différenciée Minicarte Bento (Macro vs Continentale)**
+  - [x] Implémentation du zoom 0.9 (Macro) vs 3.2 (Continentale) avec centrage dynamique (`standalone-timeline-logic.ts`)
+  - [x] Styles CSS d'expansion à 220px, badge émeraude et halo dynamique (`standalone-bento-styles.ts`)
+  - [x] Suivi continu du marqueur rouge (`context-minimap-indicator`) sur les mouvements et animations
+  - [x] Intégration et validation dans les tests unitaires (`bento-html-export.test.ts`)
+  - [x] Documentation technique Wiki-as-Code (`standalone-timeline-logic.md`, `standalone-bento-styles.md`)
+- [x] **Correctif : Préservation de l'orientation (Al-Idrisi 180°) & Atlas Images ZIP Multi-Époques**
+  - [x] Suppression du reset arbitraire du bearing à 0° dans les transitions caméra (`camera-orchestrator.ts`)
+  - [x] Capture dynamique du bearing et cadrage réels lors de l'ajout de scènes (`StoryEditorPanel.tsx`, `DataPanel.tsx`)
+  - [x] Ciblage algorithmique des époques historiques actives du monde (comme pour le PDF) (`exportMultiEpochZIP`, `extractActiveEpochs`)
+  - [x] Génération d'une collection d'images JPEG HD à la racine du ZIP avec nommage chronologique (`01_carte_av_jc_500.jpg`, `02_carte_an_1154.jpg`, etc.)
+  - [x] Génération de manifest.json et README.md récapitulatif dans l'archive
+  - [x] Intégration du bouton direct `Collection JPEG (ZIP)` dans `ExportMultimediaSection.tsx` et `ExportPdfModal.tsx`
+  - [x] Test unitaire dédié dans `multimedia-export.test.ts` (164 tests passants)
+  - [x] Documentation technique Wiki-as-Code (`media-export-utils.md`, `ExportMultimediaSection.md`, `ExportPdfModal.md`)
+- [x] **Refactoring IHM : Dissociation stricte des interfaces PDF et Collection Images ZIP**
+  - [x] Nettoyage de `ExportPdfModal.tsx` pour le consacrer exclusivement à l'Atlas PDF (retrait des contrôles ZIP)
+  - [x] Création du composant dédié `ExportZipModal.tsx` spécialisé pour la Collection JPEG ZIP avec thématique ambre distincte
+  - [x] Création de la documentation Wiki-as-Code `ExportZipModal.md`
+  - [x] Gestion de deux états de modale indépendants dans `DataPanel.tsx` (`isPdfModalOpen` vs `isZipModalOpen`)
+  - [x] Validation TypeScript et tests Vitest à 100% (164/164)
+- [x] **Correctif Robustesse : Élimination du crash intempestif `PdfExportError`**
+  - [x] Extension du polling de 30 à 50 tentatives (2.5s) pour permettre aux tuiles raster lourdes de charger (`pdf-map-capture.ts`)
+  - [x] Dégradation gracieuse : capture de l'état présent au lieu d'interrompre l'export si la caméra est immobile mais que des tuiles distantes tardent
+  - [x] Maintien du rejet strict `PdfExportError` uniquement si la caméra est en mouvement (`!cameraSettled`)
+- [x] **Documentation & Spécification : Format de Sortie Vidéo WebM (`video.md`)**
+  - [x] Définition des caractéristiques techniques (conteneur WebM, codec VP9, 30/60 FPS, capture stream GPU)
+  - [x] Documentation des fonctionnalités cartographiques (transitions caméras, bearing Al-Idrisi, synchronisation temporelle, pauses)
+  - [x] Matrice comparative (Vidéo WebM vs Collection JPEG ZIP vs Atlas PDF) et compatibilité logiciels de montage
+  - [x] Mise à jour des index Wiki-as-Code (`export.md`, `video-export.md`)
+- [x] **Évolution Vidéo : Double Compteur Connecté en Continu à l'Algorithme de Saisie et de Traitement**
+  - [x] Fonction `estimateVideoDuration` calculant à l'avance la durée totale estimée et le nombre de plans (`video-export.ts`)
+  - [x] Ticker haute-fréquence (100ms) connecté en continu à la saisie cartographique (chronomètre continu, débit Mbps, chunks, sous-étapes réelles)
+  - [x] Correction Compteur 2 : Encodage GPU synchronisé dès la 1ère tranche (1% → 90%) au lieu de rester figé à 0% pendant la capture
+  - [x] Assemblage final post-capture fluide (90% → 100%) sans discontinuité
+  - [x] Interface `ExportVideoModal.tsx` 100% active (suppression opacité 0.65, badges d'état GPU, affichage fragments)
+  - [x] Documentation Wiki-as-Code (`video.md`, `ExportVideoModal.md`)
+  - [x] Validation TypeScript et tests Vitest à 100% (165/165 passants)
+- [x] **Correctif Robustesse Vidéo : Élimination du Blocage à 80% (Post-Traitement & Finalisation)**
+  - [x] Correction Race Condition : Attachement préalable des écouteurs `recorder.onstop` et `recorder.onerror` AVANT l'appel à `recorder.stop()`
+  - [x] Ajout d'un timer garde-fou de sécurité pour garantir la résolution inconditionnelle de la promesse de finalisation
+  - [x] Remplacement du repaint synchrone par un **Canvas 2D Relais Offscreen** synchronisé sur `requestAnimationFrame`
+  - [x] Éradication définitive de l'erreur `WebGL context was lost` et garantie d'un flux vidéo complet et volumineux
+  - [x] Arrêt explicite des pistes média (`MediaStreamTrack.stop()`) pour libérer les ressources GPU à l'issue de l'export
+- [x] **Fiabilisation Vidéo : Résolution définitive du fichier 0 Ko (7 étapes implementation-video.md)**
+  - [x] Étape 1 : Instrumentation de diagnostic — Logs horodatés `[Video Export]` à chaque étape critique du pipeline
+  - [x] Étape 2 : Garde-fou dimensions du canevas — `waitForCanvasReady()` bloquant + validation piste `readyState` + vérification première frame peinte
+  - [x] Étape 3 : Validation post-assemblage du Blob — Rejet si `blob.size < MIN_VALID_BLOB_SIZE (1024)`, aucun fichier corrompu téléchargé
+  - [x] Étape 4 : Timer de sécurité proportionnel `min(15s, max(3s, durée×0.5))` + délai 200ms post-`requestData()`
+  - [x] Étape 5 : Vérification robuste codec réel — `verifyCodecSupport()` (mini-enregistrement 300ms canvas 64×64) + cascade `getVerifiedMimeType()`
+  - [x] Étape 6 : Tests de régression ciblés — 8 nouveaux cas (scène courte, CODEC_CASCADE, seuil Blob, JSDOM sans MediaRecorder)
+  - [x] Étape 7 : Retour utilisateur explicite — Modale d'erreur rouge avec `AlertTriangle`, message détaillé et bouton « Réessayer (FPS réduit) »
+  - [x] Documentation Wiki-as-Code (`video-export.md`, `video.md`, `ExportVideoModal.md`)
+- [x] **Correctif Critique : Éradication de l'écran noir de la vidéo exportée**
+  - [x] Diagnostic de la taille anormale (~600 Ko pour 22 scènes) et de l'écran uni (#1e293b)
+  - [x] Rattachement obligatoire du `recordCanvas` au `document.body` (offscreen) pour activation du compositeur Chromium/Blink
+  - [x] Hook synchrone `map.on('render')` pour capturer les pixels WebGL avant le swap/clear de buffer
+  - [x] Notification forcée de trame via `videoTrack.requestFrame()` à chaque frame copiée
+  - [x] Repaint initial `map.triggerRepaint()` et attente bloquante `framesCopied > 0`
+  - [x] Démontage propre de l'élément DOM et des écouteurs dans `finally`
+  - [x] Documentation Wiki-as-Code mise à jour (`video.md`, `video-export.md`)
+  - [x] Validation TypeScript et Vitest (173/173 tests passants)
+- [x] **Ordonnancement Périodes & Algorithme de Vérification de Capture des Entités**
+  - [x] Assignation automatique séquentielle des numéros de périodes dans la timeline (`Période 1/N — Label`, `Période 2/N`, ...)
+  - [x] Extension du schéma `StorySceneSchema` avec `periodNumber` et `totalPeriods` typés
+  - [x] Synchronisation synchrone des entités à chaque période via callback `updateEntities` éliminant la latence React
+  - [x] Algorithme `verifyAndCapturePeriodEntities` : sonde `queryRenderedFeatures` / `braudel-entities` pour certifier la présence GPU
+  - [x] Garantie de capture de quota de trames avec les entités affichées avant passage à la période suivante
+  - [x] Interface utilisateur `ExportVideoModal` : aperçu séquencé des périodes et badge télémétrique d'entités vérifiées en direct
+  - [x] Tests unitaires et d'intégration validés (175/175 passants)
+  - [x] Documentation Wiki-as-Code mise à jour (`story.md`, `video-export.md`, `ExportVideoModal.md`, `video.md`)
+- [x] **Hotfix : Résolution de l'erreur MapLibre `hillshade-exaggeration > 1` & Boucle infinie**
+  - [x] Clamping strict de `exaggeration` dans l'intervalle `[0, 1.0]` dans `mapStylesManager.ts` (`applyReliefStyle`)
+  - [x] Clamping dans `map-service.ts` (`setReliefStyle`, `applyAllCustomLayers`)
+  - [x] Clamping dans `MapView.tsx`, `StylePanel.tsx`, `store.ts` et recalibrage du preset « Dramatique » à 0.95
+  - [x] Bornage du curseur `ReliefControlsSection.tsx` de 0 à 1 (pas de 0.05)
+  - [x] Suppression des écouteurs récursifs `'styledata'` et `'idle'` dans `map-service.ts` et ajout d'un verrou anti-réentrance `isApplyingCustomLayers`
+  - [x] Documentation Wiki-as-Code (`mapStylesManager.md`, `ReliefControlsSection.md`)
+  - [x] Validation TypeScript et Vitest (175/175 tests passants)
+- [x] **Incrustation Cinématique de la Légende Cartographique Vidéo**
+  - [x] Fonction `drawRoundedRect` (tracé géométrique cross-platform de boîtes arrondies Canvas 2D)
+  - [x] Fonction `drawVideoLegend` : cartouche cinématique translucide (badge période, année, titre, décompte et pastilles colorées d'entités)
+  - [x] Échelle relative responsive calculée sur le format Full HD 1080p natif
+  - [x] Intégration dans `copyCurrentFrame` du compositeur 2D et mise à jour dynamique `updateLegendForPeriod` par scène
+  - [x] Contrôle interactif utilisateur dans `ExportVideoModal.tsx` (toggle incrustation de la légende)
+  - [x] Transmission de l'option `includeLegend` via `DataPanel.tsx` et `video-export.ts`
+  - [x] Tests unitaires dédiés validés dans `story-export.test.ts` (178/178 tests passants)
+  - [x] Documentation Wiki-as-Code (`video.md`, `video-export.md`, `ExportVideoModal.md`)
+  - [x] **Éradication des rémanences / superpositions de légendes d'époques antérieures**
+    - [x] Création du buffer 2D dédié `cleanMapCanvas` pour stocker la carte pure sans aucun texte
+    - [x] Remplacement de `copyCurrentFrame` par `composeVideoFrame` réécrasant 100% de la surface avant le tracé de la légende
+    - [x] Élimination totale de l'effet d'escalier / fantômes de boîtes plus grandes lors des changements d'époques
+    - [x] Nettoyage garanti de `cleanMapCanvas` dans `finally`
+- [x] **Harmonisation Graticules & Lignes de Rhumb (25 Fonds de Carte & Débrayage Menu)**
+  - [x] Module `styleFeatureDefaults.ts` avec `getBasemapFeatureDefaults` & `getGraticuleStyleForBasemap`
+  - [x] Synchronisation automatique des valeurs par défaut dans le store (`setBasemapStyle`)
+  - [x] Adaptation dynamique des palettes graticule dans `grid-reference-layers.ts` (`updateGraticuleStyle`)
+  - [x] Suppression du carroyage fantôme 30° `grid-layer` de `toggleGeoReferenceLines`
+  - [x] Adaptation dynamique de la palette rhumb dans `rhumb-layers.ts` (`updateRhumbPalette`)
+  - [x] Correction de l'ordre d'empilement sur mondes Tolkien (`braudel-ocean-mask` avant les calques de rhumb)
+  - [x] Tests automatisés (`basemap-features.test.ts`) et validation TypeScript/Vitest (187/187 passants)
+  - [x] Documentation technique Wiki-as-Code (`.md`)
+- [x] **Stabilisation des Tuiles Vectorielles, Graticules & Rhumbs et Traçabilité par Logs**
+  - [x] Module centralisé de logs `carto-logger.ts` (`logCarto`, `logCartoWarn`) avec timestamps
+  - [x] Auto-réparation des calques orphelins dans `toggleGraticuleGrid` et `toggleRhumbLines`
+  - [x] Positionnement rigoureux Z-Index via `beforeId: 'braudel-polygons'`
+  - [x] Immunité des repères cartographiques dans `mapStylesManager.ts`
+  - [x] Synchronisation synchrone des états de visibilité par défaut dans `mapService.setBasemapStyle`
+  - [x] Audit complet consigné dans `audi-export-vd.md` (Section 7)
+  - [x] Tests unitaires dédiés (190/190 passants sur 29 fichiers de tests)
+  - [x] Documentation Wiki-as-Code synchronisée (`carto-logger.md`, `mapLayersManager.md`, `map-service.md`, `mapStylesManager.md`, `basemap-features.test.md`)
+- [x] **Désactivation Intégrale par Défaut (Rhumb & Graticule) & Robustesse Coche/Décoche 2D/3D**
+  - [x] Remise à zéro de tous les defaults de styles (`portulanRhumbVisible: false`, `graticuleVisible: false`)
+  - [x] Mise à jour des configurations individuelles dans `realStylesHistorical.ts`, `realStylesContemporary.ts`, `fantasyStyles.ts`
+  - [x] Alignement des paramètres par défaut de `setupVectorLayers` (`false`, `false`)
+  - [x] Forçage de `triggerRepaint` et réalignement palette lors de chaque bascule dans `toggleGraticuleGrid` et `toggleRhumbLines`
+  - [x] Test unitaire validant 5 cycles consécutifs de coche/décoche 2D/3D (191/191 tests passants)
+  - [x] Documentation Wiki-as-Code synchronisée (`styleFeatureDefaults.md`, `basemap-features.test.md`)
+- [x] **Résolution Définitive des Pertes de Contexte WebGL (`webglcontextlost`)**
+  - [x] Verrou `isStyleInitialized` pour éliminer le double appel concurrent `setBasemapStyle` au montage
+  - [x] Déduplication `activeStyleUrl` pour réutiliser le pipeline WebGL sans rechargement destructif
+  - [x] Interception résiliente de `webglcontextlost` (`event.preventDefault()`) et restauration automatique sur `webglcontextrestored`
+  - [x] Documentation Wiki-as-Code synchronisée (`map-service.md`, `mapStylesManager.md`)
+- [x] **Activation Fiabilisée des Repères sur Styles Historiques & Fantasy (Peutinger, Idrissi, Portulan, Maior Blaeu, Cassini, Verne, Tolkien)**
+  - [x] Remplacement des gardes bloquants `isStyleLoaded()` par `typeof map.getStyle === 'function' && !map.getStyle()`
+  - [x] Déblocage immédiat des styles inline (mondes Tolkien) et des réutilisations d'URL Positron
+  - [x] Palettes de graticule enrichies pour `medieval` (#7a4a20) et `renaissance` (#855a2a) et renfort des opacités
+  - [x] Palettes de rhumbs adaptées aux parchemins (#8b5a2b, #7a3e1d) et aux univers Tolkien (#b8860b, #ef4444)
+  - [x] Validation intégrale Vitest (191/191 tests passants) et TypeScript (0 erreur)
+  - [x] Documentation Wiki-as-Code synchronisée (`grid-reference-layers.md`, `rhumb-layers.md`, `styleFeatureDefaults.md`, `basemap-features.test.md`, `audi-export-vd.md`)
+- [x] **Mode Studio (CapCut-like) & Export Vidéo Multi-Pistes (Audio & Vidéo)**
+  - [x] Phase 1 : Modèle de données `EditTimeline` & Types Studio (`studio-types.ts`, `story.ts`)
+  - [x] Phase 2 : Module de gestion audio `audio-import.ts` (décodage, formes d'ondes, trim, volume, fade)
+  - [x] Phase 3 : Planificateur temporel `TimelineScheduler.ts` (résolution des collisions, scheduling audio/vidéo)
+  - [x] Phase 4 : Extension du moteur d'export `video-export.ts` (mixage AudioContext, MediaStream audio+vidéo, codec Opus)
+  - [x] Phase 5 : Interface de montage CapCut `StudioTimeline.tsx` (playhead synchronisé, timeline zoomable, resize handles)
+  - [x] Phase 6 : Intégration IHM (`ExportVideoModal.tsx`, `ExportMultimediaSection.tsx`, `DataPanel.tsx`)
+  - [x] Phase 7 : Tests automatisés & validation complète (Vitest 100%, Wiki-as-Code synchronisé)
+- [x] **Mode Studio à 2 Écrans Horizontaux (Atelier de Cadrage & Moniteur de Montage)**
+  - [x] Écran 1 (Gauche) : Composant `StudioWorkspaceMonitor.tsx` (carte interactive, pan/zoom, bouton `[🎯 Enregistrer ce cadrage]`, inspecteur média)
+  - [x] Écran 2 (Droite) : Composant `StudioProgramMonitor.tsx` (rendu WYSIWYG 16:9, cartouche cinématique, images/vidéos synchronisées, écran noir gap)
+  - [x] Intégration disposition bi-écran dans `StudioTimeline.tsx` & adaptateur de conteneur `MapView` dans `App.tsx`
+  - [x] Contrôles HUD de bascule : `[⬛⬛ 2 Écrans]` / `[⬛ 1 Écran]`, `[👁️ Cartouche ON/OFF]`
+  - [x] Tests unitaires automatisés `studio-dual-monitor.test.ts`
+  - [x] Documentation technique Wiki-as-Code (`StudioWorkspaceMonitor.md`, `StudioProgramMonitor.md`, `StudioTimeline.md`, `studio.md`)
+- [x] **Résolution du Codec Audio WebM & Sauvegarde du Projet Vidéo**
+  - [x] Résolution de l'exception DOMException (`MediaRecorder.start: An audio track cannot be recorded: video/webm;codecs=vp8 indicates an unsupported codec`)
+  - [x] Séparation des cascades de codecs `CODEC_CASCADE_AUDIO` vs `CODEC_CASCADE_VIDEO_ONLY`
+  - [x] Détection préalable `hasEffectiveAudio` et boucle résiliente de rattrapage sur `recorder.start(250)`
+  - [x] Bouton `[💾 Sauvegarder Projet]` (LocalStorage, synchronisation `onSaveProject`, notifications toast et raccourci clavier `Ctrl+S`)
+  - [x] Boutons `[📥 Export JSON]` et `[📂 Ouvrir JSON]` pour sauvegarde/restauration de fichiers de projet vidéo `.json`
+  - [x] Tests unitaires automatisés (224/224 passants) et documentation Wiki-as-Code synchronisée (`video-export.md`, `StudioTimeline.md`, `studio-dual-monitor.test.md`)
+- [x] **Garantie de Complétude du Projet Vidéo (Cadrages Caméra & Bande Audio Synchronisée)**
+  - [x] Diagnostic approfondi de la coupure audio et des cadrages de fin :
+    - Élimination de la dérive temporelle : démarrage de `scheduleAudioTracks` calé exactement au top départ réel de `recorder.start(250)` (t=0ms).
+    - Suppression des pauses parasites redondantes (`pauseAfterMs` dans `playSceneTransition` en mode export) pour un contrôle strict par la timeline.
+    - Ajout du maintien actif de la durée configurée pour chaque plan cartographique (`step.durationMs`) avec émission continue de trames.
+    - Ajout du buffer de sécurité outro (+1.2s) avec maintien du cadrage final et achèvement du son sans coupure abrupte.
+    - Prise en compte du `bearing` et du `pitch` dans `selectOptimalTransitionType` et exécution inconditionnelle de `map.jumpTo` en mode statique pour préserver les cadrages et rotations 3D de toutes les cartes.
+  - [x] Amélioration de l'IHM (`ExportVideoModal.tsx`) pour certifier la complétude à l'utilisateur :
+    - Indicateur pré-vol de la bande sonore (nombre de pistes, durée audio, statut mixage).
+    - Liste ordonnée des périodes affichant les coordonnées caméra précises de chaque plan (`Zoom`, `Cap/Bearing`, `Tilt/Pitch`, badge « Plan final »).
+    - Bandeau d'assurance « Garantie de complétude ».
+    - Audit post-export « Complétude du Projet Validée à 100% » confirmant l'export sans troncature.
+  - [x] Documentation Wiki-as-Code synchronisée (`camera-orchestrator.md`, `cartography.md`, `video-export.md`, `ExportVideoModal.md`).
+  - [x] Validation TypeScript (`tsc --noEmit` code 0) et suite de tests Vitest (224/224 passants).
+- [x] **Maintien Spécifique de l'Orientation Al-Idrisi (180° Sud en Haut) en Mode CapCut**
+  - [x] Créer l'utilitaire partagé `getEffectiveStyleBearing` (résolution 180° pour `al_idrisi` si bearing indéfini ou nul).
+  - [x] Sécuriser `prepareStoryForExport` (`DataPanel.tsx`) et `createDefaultEditTimeline` (`studio-types.ts`) pour que chaque plan hérite de `bearing: 180` en mode Al-Idrisi.
+  - [x] Corriger `syncMapToPlayhead` et `handleResetClipCamera` (`StudioTimeline.tsx`) pour empêcher tout reset intempestif à 0° et maintenir le cap 180°.
+  - [x] Ajouter l'alignement automatique à 180° dès l'ouverture du Studio (`isOpen === true`) si le style est `al_idrisi`.
+  - [x] Enrichir l'Atelier de Cadrage (`StudioWorkspaceMonitor.tsx`) avec l'indicateur `🧭 Cap Al-Idrisi : 180° (Sud en haut)` et le bouton d'action directe `[🧭 180° Sud]`.
+  - [x] Enrichir le Moniteur Programme (`StudioProgramMonitor.tsx`) avec le cartouche historique `Sud en haut (Al-Idrisi 1154)`.
+  - [x] Écrire les tests unitaires automatisés dans `studio-dual-monitor.test.ts`.
+  - [x] Synchroniser la documentation Wiki-as-Code (`StudioWorkspaceMonitor.md`, `StudioTimeline.md`, `StudioProgramMonitor.md`, `styles.config.md`, `map-service.md`, `camera-orchestrator.md`, `studio-types.md`, `DataPanel.md`).
+  - [x] Valider TypeScript (`tsc --noEmit` code 0) et Vitest à 100% (227/227 passants).
+- [x] **Correction du Ratio Vidéo & Représentation Sphérique 1:1 du Globe Terrestre**
+  - [x] Standardisation de la résolution de production : verrouillage Full HD 16:9 (1920×1080) par défaut dans `video-export.ts`.
+  - [x] Composition avec conservation stricte du ratio d'aspect (`scaleX === scaleY`) éliminant définitivement l'anamorphose en œuf/ballon de rugby.
+  - [x] Attente et stabilisation du redimensionnement de la carte `map.resize()` lors de la sortie du mode Studio vers l'export (`DataPanel.tsx`).
+  - [x] Sélecteur de format de production (16:9 Paysage 1920×1080, 9:16 Vertical 1080×1920, 1:1 Carré 1080×1080) dans `ExportVideoModal.tsx`.
+  - [x] Calibrage du zoom macro du globe terrestre avec marges de respiration aux pôles Nord et Sud.
+  - [x] Nouveaux tests automatisés Vitest de projection et non-déformation du canevas.
+  - [x] Documentation technique Wiki-as-Code synchronisée (`video-export.md`, `ExportVideoModal.md`, `video.md`, `DataPanel.md`).
+- [x] **Troisième Projection Cartographique : Eckert IV 2D (Équivalente & Pseudocylindrique)**
+  - [x] Implémentation mathématique exacte des transformations directes et inverses Eckert IV (`projection.ts`) via Newton-Raphson.
+  - [x] Intégration de la projection `eckert4` dans `reprojectPixel` et dans les types `MapProjectionType`.
+  - [x] Suite complète de tests unitaires dans `projection.test.ts` (centre, roundtrip, $L_{\text{pôle}} = \frac{1}{2} L_{\text{équateur}}$, reprojection croisée).
+  - [x] Extension de l'état global Zustand (`storeTypes.ts`, `appStateDefaults.ts`) : `mapProjection: 'mercator' | 'globe' | 'eckert4'`.
+  - [x] Intégration de l'option `Eckert IV (Plat 2D Équivalent)` dans le sélecteur `<select>` de `StylePanel.tsx`.
+  - [x] Gestion du basculement dans `map-service.ts` (`setProjection`, `getCurrentProjection`).
+  - [x] Composant visuel d'enveloppe cartographique et cadre d'Atlas `EckertIVOverlay.tsx` sur `MapView.tsx`.
+  - [x] Prise en compte dans les types d'export et le viewer autonome (`bento-types.ts`, `standalone-map-init.ts`).
+  - [x] Validation complète TypeScript (`tsc --noEmit` code 0) et Vitest 100% (236/236 passants).
+  - [x] Documentation technique Wiki-as-Code synchronisée (`projection.md`, `EckertIVOverlay.md`, `StylePanel.md`, `map-service.md`, `MapView.md`, `tests.md`, `projection.test.md`).
+- [x] **Transition d'Échelle Adaptative vers le Globe 3D au Zoom (Option 2)**
+  - [x] Déclenchement automatique au zoom avant (molette `deltaY < 0`, double-clic, pinch tactile, bouton HUD `[🌍 Zoom Globe 3D]`).
+  - [x] Calcul de la coordonnée géographique du curseur $(\lambda, \varphi)$ via `eckertIVPixelToGeo` et vol animé `map.flyTo` vers la cible sur le Globe 3D.
+  - [x] Restauration complète des tuiles vectorielles multi-échelles, étiquettes horizontales nettes et relief 3D interactif.
+  - [x] Bouton flottant glassmorphic de retour rapide `[🧭 Planisphère Eckert IV]` actif en projection Globe 3D.
+  - [x] Documentation Wiki-as-Code synchronisée (`EckertIVWarpCanvas.md`, `EckertIVOverlay.md`, `MapView.md`, `walkthrough.md`).
+- [x] **Prototypage & Implémentation Eckert IV 2D (Spécification eckert.md)**
+  - [x] **Phase 0 — Cadrage et prérequis**
+    - [x] Créer / basculer sur la branche dédiée `feature/eckert-iv`
+    - [x] Ajouter `maplibre-proj` (0.0.5), `backproj` (0.0.5) et `@wcohen/wasmts` (0.1.0-alpha6) aux dépendances
+    - [x] Configurer Vite pour supporter le chargement des workers et binaires Wasm (`vite.config.ts`, `maplibre-shim.ts`)
+    - [x] Vérifier la compatibilité de version avec MapLibre GL JS 5.24.0
+    - [x] Définir et valider le code de projection cible `ESRI:54012` (`eckertProjService.ts`)
+    - [x] Identifier et cartographier les points d'appel (`LngLat`, calcul de distance, marqueurs/popups)
+    - [x] Documentation technique Wiki-as-Code (`eckertProjService.md`, `maplibre-shim.md`, `cartography.md`)
+  - [x] **Phase 1 — Prototype avec `maplibre-proj` (voie rapide)**
+    - [x] Isoler un style MapLibre minimal pour test (`reprojectStyleEckert.ts`)
+    - [x] Implémenter `reprojectStyle({ style, crs: 'ESRI:54012' })` et charger avec `projection: { type: 'mercator' }`
+    - [x] Vérifier le rendu visuel du planisphère complet (déformation attendue, pôles, antiméridien)
+    - [x] Tester le pan & zoom natifs de MapLibre sur le style reprojeté
+    - [x] Mesurer le coût de reprojection à la volée (temps d'initialisation, fluidité FPS en pan continu, débit > 50 000 sommets/s)
+    - [x] Évaluer le comportement sur le relief raster-dem / hillshade et documenter les artefacts
+    - [x] Arbitrage critère de passage documenté (vectoriel 60 FPS via backproj, raster relief via shader/statique)
+    - [x] Documentation technique Wiki-as-Code (`reprojectStyleEckert.md`, `eckert-proj.test.md`)
+  - [x] **Phase 2 — Pré-déformation statique au build (voie de production)**
+    - [x] Script de pré-projection des coordonnées sources en Eckert IV (`scripts/preproject-eckert4.ts`)
+    - [x] Indexation de tuiles vectorielles multi-échelles via `geojson-vt` (`preprojectEckert.ts`)
+    - [x] Intégration au pipeline de build local (`package.json` script `preproject:eckert`)
+  - [x] **Phase 3 — Fonctions géographiques custom**
+    - [x] Conversion coordonnées `lngLat <-> Eckert IV` harmonisée avec MapLibre (`eckertGeoUtils.ts`)
+    - [x] Fonctions de calcul de distance géodésique orthodromique (`calculateGeodesicDistanceKm`)
+    - [x] Positionnement des marqueurs et popups (`placeMarkerOnMap`)
+    - [x] Dé-projection des entités sélectionnées et dessinées (`unprojectRenderedFeatureCoordinates`)
+    - [x] Documentation technique Wiki-as-Code associée (`eckertGeoUtils.md`)
+  - [x] **Phase 4 — Intégration UI : Troisième mode de projection**
+    - [x] Basculement dynamique du mode de projection dans `StylePanel.tsx` et `MapView.tsx`
+    - [x] Rendu direct natif MapLibre GL en Eckert IV sans écran noir ni masquage de canevas
+    - [x] Reprojection asynchrone des couches actives (entités `braudel-entities`, continents `braudel-continents`)
+    - [x] Adaptation des couches d'orientation (équateur, tropiques du Cancer et du Capricorne, cercles polaires Arctique et Antarctique dans `EckertIVOverlay.tsx`)
+    - [x] Contrôles HUD interactifs de recentrage et zoom connectés directement à la caméra MapLibre
+  - [x] **Phase 5 — Tests et validation**
+    - [x] Tests unitaires automatisés (`eckert-proj.test.ts`, 20/20 tests validés)
+    - [x] Validation de non-régression de l'ensemble de la suite de tests (33 fichiers, 256/256 tests passants)
+    - [x] Validation stricte TypeScript `tsc --noEmit` (code de sortie 0, zéro erreur)
+    - [x] Documentation de référence `docs/braudel.md` et `braudel/braudel.md` rédigée (spécification complète des 3 projections et justification Voie 1 vs Voie 2)
+    - [x] Documentation technique Wiki-as-Code finale synchronisée (`ARCHITECTURE.md`, `cartography.md`, `map-service.md`, `MapView.md`, `preprojectEckert.md`, `eckertGeoUtils.md`, `preproject-eckert4.md`, `walkthrough.md`)
+- [x] **Rétablissement de la déformation continue GPU Eckert IV & Résolution du conflit de projection**
+  - [x] Diagnostic de l'affichage plat : mise en évidence que `maplibre-proj` ne déforme pas le canevas MapLibre rectangulaire, ignore les tuiles avec `url` (TileJSON) et ne supporte pas les calques raster/hillshade.
+  - [x] Réintégration de `EckertIVWarpCanvas` dans `MapView.tsx` : exécution du fragment shader GPU WebGL pour appliquer l'inversion analytique d'Eckert IV à 60 FPS sur l'ensemble de la texture de carte.
+  - [x] Coordination avec `EckertIVOverlay` : superposition du cadre d'atlas 2:1, repères géographiques et contrôles HUD.
+  - [x] Simplification de `map-service.ts` : cadrage automatique centré `[0, 0]` sans style-reload ni double-projection des entités GeoJSON.
+  - [x] Validation TypeScript (`tsc --noEmit` code 0) et Vitest (256/256 tests passants).
+- [x] **Transition Fluide & Acceptable entre Eckert IV et Globe 3D**
+  - [x] Machine d'états cinématique dans `MapView.tsx` (`idle`, `eckert_to_globe`, `globe_to_eckert`)
+  - [x] Sens Eckert IV -> Globe 3D : calcul de l'origine écran dynamique (`screenPos`), gel de texture GPU dans `EckertIVWarpCanvas` pour éviter la corruption de sampling, bascule MapLibre en projection `globe` et amorce du `flyTo` vers la zone ciblée (zoom 3.2, 1800ms) avec fondu enchaîné optique (scale 1.12, opacity 0, 520ms)
+  - [x] Sens Globe 3D -> Eckert IV (« Zéro Pop ») : dézoom fluide du Globe vers l'espace cosmique (`flyTo([0, 0], zoom: 1.12, 480ms)`), déploiement progressif du planisphère Eckert IV dès 200ms (`scale: 0.92 -> 1.0`, `opacity: 0 -> 1`, 550ms) au-dessus du Globe maintenu en 3D, puis bascule silencieuse en Mercator à 780ms sous le canevas opaque
+  - [x] Persistance GPU dans `EckertIVWarpCanvas` : maintien en VRAM du contexte WebGL, des shaders et des textures à travers les changements de mode de projection
+  - [x] Interaction tactile et molette progressive : zoom local 1.0x à 2.4x sur le planisphère, puis plongée dynamique automatique vers le Globe au-delà de 2.4x
+  - [x] Rédaction du bilan exhaustif et des éléments visuels dans `eckert-results.md`
+  - [x] Validation TypeScript (`tsc --noEmit` code 0) et Vitest (33 fichiers, 256/256 tests passants)
+- [x] **Plein Écran Hors-Cadre (Full-Bleed Offscreen Scaling), Dézoom Automatique & Résilience Événements/Contexte WebGL**
+  - [x] Échelle dynamique hors-champ (`getOffscreenScale()` $\approx 1.85\times - 2.0\times$) : invisibilisation totale des bordures d'atlas et de l'enveloppe ovale pendant la transition cinématique
+  - [x] Dézoom molette automatique en mode Globe : capture du dézoom arrière (`deltaY > 0`) en orbite cosmique (`zoom <= 1.35`) pour ré-enclencher fluidement le planisphère d'ensemble Eckert IV
+  - [x] Élimination du crash TypeError (`dragStartRef.current is null`) : extraction synchrone des déplacements avant l'évaluation différée de la mise à jour d'état React
+  - [x] Suppression de l'avertissement React 18 sur les écouteurs passifs : écouteur de molette natif avec `{ passive: false }` sur le canevas WebGL
+  - [x] Sécurisation défensive `handleTransformChange` dans `MapView.tsx` : filtrage strict des NaN et capture d'erreurs pour protéger le contexte WebGL MapLibre
+- [x] **Génération Automatique de la Couche Alpha (« Fond Géopolitique (Alpha) »)**
+  - [x] Schéma et métadonnées : marquage `isBaseLayer: true` au rang 0 sur la couche initiale
+  - [x] Création automatique à la génération d'un monde (`storeActions.ts`) : création immédiate en mémoire et persistance IndexedDB (`Fond Géopolitique (Alpha)` en monde réel, `Fond Géographique (Alpha)` en monde fictif)
+  - [x] Auto-réparation rétrocompatible et rattachement d'orphelins (`worldSlice.ts`) : détection de mondes anciens sans couches, instanciation automatique de la couche Alpha, et réassignation des entités orphelines
+  - [x] Pré-sélection dans l'interface d'import (`ImportPreviewModal.tsx`) : sélection par défaut de la couche Alpha avec badge `🛡️ [Alpha]`
+  - [x] IHM de gestion des couches (`LayerPanel.tsx`) : badge `Alpha` distinctif, compteur dynamique du nombre d'entités rattachées, alerte de confirmation explicite à la tentative de suppression
+  - [x] Tests unitaires et d'intégration (`integration.test.ts`, `multiworld.test.ts`) : vérification de la création systématique et de l'intégrité de la couche de base
+  - [x] Compilation TypeScript (`tsc --noEmit` code 0) et suite de tests Vitest (33 fichiers, 257/257 tests passants)
+  - [x] Documentation Wiki-as-Code synchronisée (`worldSlice.md`, `storeActions.md`, `LayerPanel.md`, `ImportPreviewModal.md`)
